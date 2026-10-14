@@ -125,7 +125,7 @@ await sleep(3000);
 
 const JOB_SELECT =
   'id, client_id, zone, price_ars, desired_at, status, is_expired, ' +
-  'client:profiles!jobs_client_id_fkey(id, first_name, last_initial, avatar_path), applications(id, status, cutter_id)';
+  'client:profiles!jobs_client_id_fkey(id, first_name, last_initial, avatar_path), applications!applications_job_id_fkey(id, status, cutter_id)';
 
 /** foreignAppId: una postulación AJENA, para intentar retirarla o editarla. */
 async function probe(who, sb, foreignAppId) {
@@ -133,7 +133,7 @@ async function probe(who, sb, foreignAppId) {
   r.disponibles = await sb.from('jobs').select(JOB_SELECT).eq('status', 'publicado').eq('is_expired', false);
   r.detalle = await sb.from('jobs').select(JOB_SELECT).eq('id', jobId).maybeSingle();
   r.postulaciones = await sb.from('applications').select('*');
-  r.postulacionesEmbed = await sb.from('applications').select('*, job:jobs(*), cutter:profiles(*)');
+  r.postulacionesEmbed = await sb.from('applications').select('*, job:jobs!applications_job_id_fkey(*), cutter:profiles(*)');
   r.avisos = await sb.from('notifications').select('*');
   r.avisosCliente = await sb.from('notifications').select('*').eq('user_id', cliente.uid);
   r.direccion = await sb.from('job_private').select('*');

@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconBan, IconCheck, IconClockExclamation, IconPencil, IconUsers } from '@tabler/icons-react';
+import { IconBan, IconCheck, IconCircleCheck, IconClockExclamation, IconPencil } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -12,6 +12,9 @@ import { JobPhotos } from '../../jobs/JobPhotos';
 import { JobStatusBadge } from '../../jobs/JobStatusBadge';
 import { jobDisplayStatus, jobKeys, pendingCount, useJob, useJobAddress } from '../../jobs/queries';
 import { applicationKeys } from '../../applications/queries';
+import { ApplicantsList } from '../../assignment/ApplicantsList';
+import { AssignedPanel } from '../../assignment/AssignedPanel';
+import { displayName, useMyProfile } from '../../profile/queries';
 import { cancelJob } from '../../jobs/saveJob';
 import { confirmAction } from '../../lib/confirm';
 import { friendlyError } from '../../lib/errors';
@@ -24,6 +27,7 @@ export function PedidoDetallePage() {
   const { data: job, isPending, error, refetch } = useJob(jobId);
   const isOwner = !!job && job.client_id === userId;
   const { data: address } = useJobAddress(jobId, isOwner);
+  const { data: profile } = useMyProfile();
   const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -45,6 +49,8 @@ export function PedidoDetallePage() {
   const pending = isPublished ? pendingCount(job) : 0;
   // Con postulaciones pendientes no se edita (los cortadores se postularon a lo publicado).
   const editable = isPublished && pending === 0;
+  const cancelledByCutter =
+    job.status === 'cancelado' && !!job.cancelled_by && job.cancelled_by === job.assigned_cutter_id;
 
   const onCancel = async () => {
     const ok = await confirmAction({
@@ -93,7 +99,14 @@ export function PedidoDetallePage() {
       )}
       {job.status === 'cancelado' && job.cancelled_at && (
         <Alert color="gray" icon={<IconBan aria-hidden />} title="Pedido cancelado">
-          Lo cancelaste el {formatDateTime(job.cancelled_at, job.locality.timezone)}.
+          {cancelledByCutter
+            ? `La persona que elegiste canceló el trabajo el ${formatDateTime(job.cancelled_at, job.locality.timezone)}. Si querés, publicalo de nuevo.`
+            : `Lo cancelaste el ${formatDateTime(job.cancelled_at, job.locality.timezone)}.`}
+        </Alert>
+      )}
+      {job.status === 'asignado' && (
+        <Alert color="violet" icon={<IconCircleCheck aria-hidden />} title="Trabajo asignado">
+          Ya elegiste quién corta el pasto. Coordinen los detalles por WhatsApp.
         </Alert>
       )}
 
@@ -110,26 +123,10 @@ export function PedidoDetallePage() {
         </Stack>
       )}
 
-      {isPublished && (
-        <Card withBorder radius="md" padding="lg">
-          <Group gap="sm" wrap="nowrap" align="flex-start">
-            <IconUsers size={24} aria-hidden style={{ flex: 'none' }} />
-            <Stack gap={4}>
-              <Text fw={700}>
-                {pending === 0
-                  ? 'Todavía nadie se postuló'
-                  : pending === 1
-                    ? '1 persona se postuló'
-                    : `${pending} personas se postularon`}
-              </Text>
-              <Text size="sm" c="dimmed">
-                {pending === 0
-                  ? 'Te avisamos en «Avisos» cuando alguien se postule.'
-                  : 'Ver quiénes son y elegir a uno: se completa en la Fase 4.'}
-              </Text>
-            </Stack>
-          </Group>
-        </Card>
+      {isPublished && <ApplicantsList job={job} />}
+
+      {job.status === 'asignado' && profile && (
+        <AssignedPanel job={job} viewer="cliente" myName={displayName(profile)} />
       )}
 
       {isPublished && pending > 0 && (

@@ -1,12 +1,14 @@
 import { Alert, Button, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowBackUp, IconCheck, IconInfoCircle, IconPencil, IconSend } from '@tabler/icons-react';
+import { IconArrowBackUp, IconCheck, IconConfetti, IconInfoCircle, IconPencil, IconSend } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { confirmAction } from '../lib/confirm';
 import dayjs from '../lib/dayjs';
 import { friendlyError } from '../lib/errors';
 import { jobDisplayStatus, jobKeys, type Job } from '../jobs/queries';
+import { AssignedPanel } from '../assignment/AssignedPanel';
+import { displayName, useMyProfile } from '../profile/queries';
 import { ApplicationForm } from './ApplicationForm';
 import { ApplicationStatusBadge, ProposalSummary } from './ApplicationParts';
 import { applicationKeys, withdrawApplication, type Application } from './queries';
@@ -16,6 +18,7 @@ type Props = { job: Job; application: Application | null };
 /** Sección del detalle del trabajo para el cortador: postularse, ver, editar o retirar su postulación. */
 export function ApplicationPanel({ job, application }: Props) {
   const queryClient = useQueryClient();
+  const { data: profile } = useMyProfile();
   const [editing, setEditing] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +94,18 @@ export function ApplicationPanel({ job, application }: Props) {
     );
   }
 
+  // Me eligieron: contacto del cliente (dirección y WhatsApp) y "Cancelar trabajo".
+  if (application.status === 'aceptada' && job.status === 'asignado') {
+    return (
+      <Stack gap="md">
+        <Alert color="teal" icon={<IconConfetti aria-hidden />} title="¡Te eligieron!">
+          {job.client.first_name} aceptó tu postulación. Escribile por WhatsApp para coordinar.
+        </Alert>
+        {profile && <AssignedPanel job={job} viewer="cortador" myName={displayName(profile)} />}
+      </Stack>
+    );
+  }
+
   // El cliente puede aceptar una postulación de un pedido vencido si el horario propuesto es futuro.
   const proposedFuture = !!application.proposed_at && dayjs(application.proposed_at).isAfter(dayjs());
 
@@ -105,7 +120,13 @@ export function ApplicationPanel({ job, application }: Props) {
             <ApplicationStatusBadge status={application.status} />
           </Group>
           <ProposalSummary job={job} application={application} />
-          {application.status === 'cancelada' && <Text c="dimmed">El cliente canceló el pedido.</Text>}
+          {application.status === 'cancelada' && (
+            <Text c="dimmed">
+              {job.cancelled_by && job.cancelled_by === job.assigned_cutter_id
+                ? 'Cancelaste este trabajo.'
+                : 'El cliente canceló el pedido.'}
+            </Text>
+          )}
           {application.status === 'rechazada' && <Text c="dimmed">El cliente eligió a otra persona.</Text>}
           {pending && (
             <Text size="sm" c="dimmed">

@@ -34,7 +34,8 @@ export function useMyApplications() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('applications')
-        .select(`${APPLICATION_SELECT}, job:jobs(${JOB_SELECT})`)
+        // Dos FK entre applications y jobs: el embed nombra la del pedido de la postulación.
+        .select(`${APPLICATION_SELECT}, job:jobs!applications_job_id_fkey(${JOB_SELECT})`)
         .eq('cutter_id', userId)
         .order('updated_at', { ascending: false })
         .limit(200);

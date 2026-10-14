@@ -169,6 +169,11 @@ export function ProfileForm({ profile, initialRoles, showRoles, submitLabel, onS
         {localities && localities.length > 1 ? (
           <Select
             label="Localidad"
+            description={
+              profile
+                ? 'No se puede cambiar mientras tengas pedidos publicados o asignados, o postulaciones pendientes o aceptadas.'
+                : undefined
+            }
             withAsterisk
             allowDeselect={false}
             data={localities.map((l) => ({ value: String(l.id), label: `${l.name}, ${l.province}` }))}

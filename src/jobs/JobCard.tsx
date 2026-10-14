@@ -4,7 +4,7 @@ import { Link } from 'react-router';
 import { formatDateTime, formatPrice } from '../lib/format';
 import { displayName, useAvatarUrl } from '../profile/queries';
 import { JobStatusBadge } from './JobStatusBadge';
-import { jobDisplayStatus, pendingCount, type Job } from './queries';
+import { jobDisplayStatus, jobTerms, pendingCount, type Job } from './queries';
 import classes from './jobs.module.css';
 
 type Props = {
@@ -17,6 +17,7 @@ type Props = {
 
 export function JobCard({ job, to, variant, thumbUrl }: Props) {
   const tz = job.locality.timezone;
+  const terms = jobTerms(job);
   return (
     <Card component={Link} to={to} withBorder radius="md" padding="md" className={classes.card}>
       <Stack gap="xs">
@@ -37,11 +38,17 @@ export function JobCard({ job, to, variant, thumbUrl }: Props) {
         <Group align="flex-start" wrap="nowrap" gap="sm">
           <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
             <Text fw={800} size="xl">
-              {formatPrice(job.price_ars)}
+              {formatPrice(terms.priceArs)}
+              {terms.agreed && (
+                <Text span size="sm" fw={600} c="dimmed">
+                  {' '}
+                  (acordado)
+                </Text>
+              )}
             </Text>
             <Group gap={6} wrap="nowrap" align="flex-start">
               <IconCalendarEvent size={20} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
-              <Text>{formatDateTime(job.desired_at, tz)}</Text>
+              <Text>{formatDateTime(terms.at, tz)}</Text>
             </Group>
             <Group gap={6} wrap="nowrap" align="flex-start">
               <IconMapPin size={20} aria-hidden style={{ flex: 'none', marginTop: 2 }} />

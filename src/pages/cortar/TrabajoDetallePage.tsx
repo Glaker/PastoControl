@@ -72,14 +72,19 @@ export function TrabajoDetallePage() {
 
       {job.status === 'cancelado' && (
         <Alert color="gray" icon={<IconBan aria-hidden />} title="Pedido cancelado">
-          El cliente canceló este pedido.
+          {job.cancelled_by && job.cancelled_by === userId ? 'Cancelaste este trabajo.' : 'El cliente canceló este pedido.'}
+        </Alert>
+      )}
+      {job.status === 'asignado' && application.data?.status !== 'aceptada' && (
+        <Alert color="gray" icon={<IconBan aria-hidden />} title="Ya tiene quien lo corte">
+          El cliente eligió a otra persona para este trabajo.
         </Alert>
       )}
 
       <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
           <ClientLine client={job.client} size={48} />
-          <JobFacts job={job} />
+          <JobFacts job={job} showAgreed={application.data?.status === 'aceptada'} />
         </Stack>
       </Card>
 
@@ -92,9 +97,11 @@ export function TrabajoDetallePage() {
         </Stack>
       )}
 
-      <Alert color="blue" icon={<IconLock aria-hidden />}>
-        La dirección exacta y el WhatsApp se comparten cuando el cliente acepta tu postulación.
-      </Alert>
+      {!(job.status === 'asignado' && application.data?.status === 'aceptada') && (
+        <Alert color="blue" icon={<IconLock aria-hidden />}>
+          La dirección exacta y el WhatsApp se comparten cuando el cliente acepta tu postulación.
+        </Alert>
+      )}
 
       <ApplicationPanel job={job} application={application.data ?? null} />
     </Stack>

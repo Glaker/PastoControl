@@ -98,6 +98,11 @@ export type Database = {
       }
       jobs: {
         Row: {
+          agreed_at: string | null
+          agreed_price_ars: number | null
+          assigned_application_id: string | null
+          assigned_at: string | null
+          assigned_cutter_id: string | null
           cancelled_at: string | null
           cancelled_by: string | null
           client_id: string
@@ -115,6 +120,11 @@ export type Database = {
           is_expired: boolean | null
         }
         Insert: {
+          agreed_at?: string | null
+          agreed_price_ars?: number | null
+          assigned_application_id?: string | null
+          assigned_at?: string | null
+          assigned_cutter_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           client_id: string
@@ -131,6 +141,11 @@ export type Database = {
           zone: string
         }
         Update: {
+          agreed_at?: string | null
+          agreed_price_ars?: number | null
+          assigned_application_id?: string | null
+          assigned_at?: string | null
+          assigned_cutter_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           client_id?: string
@@ -147,6 +162,20 @@ export type Database = {
           zone?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "jobs_assigned_application_id_fkey"
+            columns: ["assigned_application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_assigned_cutter_id_fkey"
+            columns: ["assigned_cutter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "jobs_cancelled_by_fkey"
             columns: ["cancelled_by"]
@@ -346,6 +375,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_application: {
+        Args: { p_application_id: string; p_expected_updated_at: string }
+        Returns: undefined
+      }
       apply_to_job: {
         Args: {
           p_job_id: string
@@ -367,6 +400,35 @@ export type Database = {
           p_zone: string
         }
         Returns: string
+      }
+      get_job_applicants: {
+        Args: { p_job_id: string }
+        Returns: {
+          application_id: string
+          avatar_path: string
+          created_at: string
+          cutter_id: string
+          done_jobs: number
+          first_name: string
+          last_initial: string
+          proposed_at: string
+          proposed_price_ars: number
+          status: string
+          updated_at: string
+          yes_pct: number
+        }[]
+      }
+      get_job_contact: {
+        Args: { p_job_id: string }
+        Returns: {
+          address: string
+          agreed_at: string
+          agreed_price_ars: number
+          counterpart_role: string
+          first_name: string
+          last_name: string
+          phone_e164: string
+        }[]
       }
       is_expired: {
         Args: { "": Database["public"]["Tables"]["jobs"]["Row"] }

@@ -1,4 +1,4 @@
-import { IconArrowBackUp, IconBan, IconBell, IconPencil, IconUserPlus, type Icon } from '@tabler/icons-react';
+import { IconArrowBackUp, IconBan, IconBell, IconConfetti, IconPencil, IconUserPlus, IconUserX, type Icon } from '@tabler/icons-react';
 import { formatDateTime, formatPrice } from '../lib/format';
 import type { AppNotification } from './queries';
 
@@ -65,6 +65,40 @@ export function describeNotification(
         title: 'Pedido cancelado',
         body: `El cliente canceló el pedido en ${zone}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Tu postulación quedó sin efecto.`,
         to: n.job_id ? `/cortar/trabajo/${n.job_id}` : null,
+      };
+    case 'postulacion_aceptada':
+      return {
+        icon: IconConfetti,
+        color: 'teal',
+        title: '¡Te eligieron!',
+        body: `${actor} aceptó tu postulación para ${zone}${p.price_ars ? `: ${formatPrice(p.price_ars)}` : ''}${
+          p.desired_at ? `, ${formatDateTime(p.desired_at, tz)}` : ''
+        }. Ya podés ver la dirección y escribirle por WhatsApp.`,
+        to: n.job_id ? `/cortar/trabajo/${n.job_id}` : null,
+      };
+    case 'postulacion_rechazada':
+      return {
+        icon: IconUserX,
+        color: 'gray',
+        title: 'Eligieron a otra persona',
+        body: `El cliente eligió a otra persona para el trabajo en ${zone}. ¡Suerte con el próximo!`,
+        to: n.job_id ? `/cortar/trabajo/${n.job_id}` : null,
+      };
+    case 'trabajo_cancelado_por_cliente':
+      return {
+        icon: IconBan,
+        color: 'red',
+        title: 'Trabajo cancelado',
+        body: `${actor} canceló el trabajo en ${zone}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}.`,
+        to: n.job_id ? `/cortar/trabajo/${n.job_id}` : null,
+      };
+    case 'trabajo_cancelado_por_cortador':
+      return {
+        icon: IconBan,
+        color: 'red',
+        title: 'Trabajo cancelado',
+        body: `${actor} canceló el trabajo en ${zone}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Si querés, publicalo de nuevo.`,
+        to: n.job_id ? `/pedir/pedido/${n.job_id}` : null,
       };
     default:
       return { icon: IconBell, color: 'gray', title: 'Aviso', body: '', to: null };
