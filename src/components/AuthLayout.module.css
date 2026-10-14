@@ -1,0 +1,26 @@
+.bar {
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  padding-inline: var(--mantine-spacing-md);
+  background: var(--mantine-color-pasto-8);
+  color: var(--mantine-color-white);
+}
+
+.logo {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--mantine-radius-sm);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.85);
+}
+
+.name {
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.page {
+  min-height: 100dvh;
+  background: var(--mantine-color-gray-0);
+}

@@ -1,0 +1,14 @@
+html,
+body {
+  margin: 0;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  /* Textos largos (direcciones, zonas) cortan línea en vez de generar scroll horizontal. */
+  overflow-wrap: break-word;
+}
+
+img {
+  max-width: 100%;
+}

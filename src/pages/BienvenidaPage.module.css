@@ -1,0 +1,11 @@
+.card {
+  padding: var(--mantine-spacing-md);
+  min-height: 3rem;
+  background: var(--mantine-color-white);
+
+  &[data-checked] {
+    border-color: var(--mantine-color-pasto-8);
+    box-shadow: 0 0 0 1px var(--mantine-color-pasto-8);
+    background: var(--mantine-color-pasto-0);
+  }
+}

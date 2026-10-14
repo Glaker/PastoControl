@@ -1,0 +1,15 @@
+.banner {
+  position: fixed;
+  /* Arriba del encabezado y la barra inferior (100-101), debajo de los modales (200). */
+  z-index: 150;
+  left: var(--mantine-spacing-md);
+  right: var(--mantine-spacing-md);
+  bottom: calc(var(--mantine-spacing-md) + env(safe-area-inset-bottom));
+  max-width: 32rem;
+  margin-inline: auto;
+}
+
+/* Con la barra de navegación abajo, el aviso queda por encima de ella. */
+body:has([data-bottom-nav]) .banner {
+  bottom: calc(4rem + var(--mantine-spacing-sm) + env(safe-area-inset-bottom));
+}
