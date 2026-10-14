@@ -1,5 +1,6 @@
 -- Pruebas de seguridad · Fase 4 (accept_application, get_job_applicants, get_job_contact,
 -- cancelaciones después de asignar, regla de localidad en upsert_my_profile).
+-- Desde la Fase 5 el acuerdo vive en job_agreements (0018/0019): casos 35, 43, 44, 54, 59, 63, 81, 85-89, 94, 96, 97.
 --
 -- Cómo funciona: igual que las fases anteriores. Al final hace RAISE EXCEPTION con el informe: eso
 -- deshace TODA la transacción. Buscá "FALLA" en el informe.
@@ -115,7 +116,9 @@ begin
       (32, 'B2', 'B2 cambia su propuesta después de que A la vio', format('select public.update_application(' || app || ', 21000)', b2, j1), 'ok'),
       (33, 'A', 'A no puede aceptar la versión vieja de B2', format('select public.accept_application(' || app || ', (select updated_at from pg_temp.t_app where cutter_id = %L and job_id = %L))', b2, j1, b2, j1), 'err:cambió'),
       (34, 'A', 'A acepta a B (versión actual)', format(accept, b, j1, b, j1), 'ok'),
-      (35, 'admin', 'El pedido 1 queda asignado a B con lo publicado ($ 15.000 y la fecha publicada)', format('select 1 from public.jobs where id = %L and status = ''asignado'' and assigned_cutter_id = %L and agreed_price_ars = 15000 and agreed_at = desired_at and assigned_at is not null and assigned_application_id = %s', j1, b, format(app, b, j1)), 'count:1'),
+      (35, 'admin', 'El pedido 1 queda asignado a B con lo publicado ($ 15.000 y la fecha publicada)', format('select 1 from public.jobs j join public.job_agreements g on g.job_id = j.id where j.id = %L and j.status = ''asignado'' and g.client_id = %L and g.cutter_id = %L and g.price_ars = 15000 and g.agreed_at = j.desired_at and g.application_id = %s', j1, a, b, format(app, b, j1)), 'count:1'),
+      (43, 'A', 'A (cliente) lee el acuerdo del pedido 1', format('select 1 from public.job_agreements where job_id = %L', j1), 'count:1'),
+      (44, 'B', 'B (cortador elegido) lee el acuerdo del pedido 1', format('select 1 from public.job_agreements where job_id = %L', j1), 'count:1'),
       (36, 'admin', 'La de B queda aceptada y la de B2 rechazada', format('select 1 from public.applications where job_id = %L and ((cutter_id = %L and status = ''aceptada'') or (cutter_id = %L and status = ''rechazada''))', j1, b, b2), 'count:2'),
       (37, 'admin', 'B recibió "postulacion_aceptada" y B2 "postulacion_rechazada"', format('select 1 from public.notifications where job_id = %L and ((user_id = %L and kind = ''postulacion_aceptada'') or (user_id = %L and kind = ''postulacion_rechazada''))', j1, b, b2), 'count:2'),
       (38, 'A', 'A no puede aceptar a otro en un pedido asignado', format(accept, b2, j1, b2, j1), 'err:Ya elegiste'),
@@ -134,19 +137,26 @@ begin
       (51, 'B', 'B sigue sin poder leer job_private directo', format('select * from public.job_private where job_id = %L', j1), 'count:0'),
       (52, 'B', 'B sigue sin poder leer profile_private de A directo', format('select * from public.profile_private where user_id = %L', a), 'count:0'),
       (53, 'B2', 'B2 ve el pedido asignado (se había postulado) pero no la dirección', format('select 1 from public.jobs j left join public.job_private jp on jp.job_id = j.id where j.id = %L and j.status = ''asignado'' and jp.address is null', j1), 'count:1'),
+      (54, 'B2', 'B2 (no elegido) no lee el acuerdo: ni precio ni horario ni quién', 'select * from public.job_agreements', 'count:0'),
+      (85, 'F', 'F (no postulado) no lee ningún acuerdo', 'select * from public.job_agreements', 'count:0'),
+      (86, 'C', 'C (tercero) no lee ningún acuerdo', 'select * from public.job_agreements', 'count:0'),
+      (87, 'anon', 'anon no lee acuerdos', 'select * from public.job_agreements', 'err:permission denied'),
+      (88, 'B', 'B no puede escribir acuerdos directo', format('update public.job_agreements set price_ars = 1 where job_id = %L', j1), 'err:permission denied'),
+      (89, 'admin', 'Un solo acuerdo por pedido (job_id único)', format('insert into public.job_agreements (job_id, application_id, client_id, cutter_id, price_ars, agreed_at) select job_id, %s, client_id, cutter_id, price_ars, agreed_at from public.job_agreements where job_id = %L', format(app, b2, j1), j1), 'err:duplicate key'),
 
       -- Pedido vencido: solo se acepta una propuesta con horario futuro
       (55, 'admin', '(preparación) el pedido 3 pasa a estar vencido', format('update public.jobs set desired_at = now() - interval ''1 hour'' where id = %L', j3), 'affected:1'),
       (56, 'A', 'A no puede aceptar a B en el 3 (horario publicado, ya pasó)', format(accept, b, j3, b, j3), 'err:ya pasó'),
       (57, 'B2', 'B2 propone un horario futuro en el pedido vencido', format('select public.update_application(' || app || ', null, now() + interval ''1 day'')', b2, j3), 'ok'),
       (58, 'A', 'A acepta a B2 en el pedido 3 vencido', format(accept, b2, j3, b2, j3), 'ok'),
-      (59, 'admin', 'El acuerdo del 3 usa el horario propuesto y el precio publicado', format('select 1 from public.jobs where id = %L and status = ''asignado'' and assigned_cutter_id = %L and agreed_price_ars = 15000 and agreed_at > now()', j3, b2), 'count:1'),
+      (59, 'admin', 'El acuerdo del 3 usa el horario propuesto y el precio publicado', format('select 1 from public.jobs j join public.job_agreements g on g.job_id = j.id where j.id = %L and j.status = ''asignado'' and g.cutter_id = %L and g.price_ars = 15000 and g.agreed_at > now()', j3, b2), 'count:1'),
 
       -- Cancelar después de asignar
       (60, 'F', 'F no puede cancelar el pedido 1', format('select public.cancel_job(%L)', j1), 'err:No encontramos ese pedido'),
       (61, 'B2', 'B2 (rechazado) no puede cancelar el pedido 1', format('select public.cancel_job(%L)', j1), 'err:No encontramos ese pedido'),
       (62, 'B', 'B (cortador aceptado) cancela el pedido 1', format('select public.cancel_job(%L)', j1), 'ok'),
-      (63, 'admin', 'El pedido 1 queda cancelado por B y su postulación cancelada', format('select 1 from public.jobs j join public.applications a on a.id = j.assigned_application_id where j.id = %L and j.status = ''cancelado'' and j.cancelled_by = %L and a.status = ''cancelada''', j1, b), 'count:1'),
+      (63, 'admin', 'El pedido 1 queda cancelado por B (en el acuerdo, no en jobs) y su postulación cancelada', format('select 1 from public.jobs j join public.job_agreements g on g.job_id = j.id join public.applications a on a.id = g.application_id where j.id = %L and j.status = ''cancelado'' and j.cancelled_by is null and g.cancelled_by = %L and a.status = ''cancelada''', j1, b), 'count:1'),
+      (71, 'B2', 'B2 (no elegido) no puede saber que canceló el elegido ni quién era', format('select 1 from public.jobs where id = %L and status = ''cancelado'' and cancelled_by is null', j1), 'count:1'),
       (64, 'admin', 'A recibió "trabajo_cancelado_por_cortador" con el nombre visible de B', format('select 1 from public.notifications where user_id = %L and kind = ''trabajo_cancelado_por_cortador'' and job_id = %L and payload->>''actor_name'' = ''Beto B.''', a, j1), 'count:1'),
       (65, 'A', 'Cancelado, A ya no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (66, 'B', 'Cancelado, B ya no recibe el contacto (ni la dirección)', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
@@ -162,7 +172,7 @@ begin
       (78, 'B', 'B retira su postulación al pedido 2', format('select public.withdraw_application(' || app || ')', b, j2), 'ok'),
       (79, 'B', 'Sin nada activo, B ya puede cambiar de localidad', format(prof, 'Beto', 'Benítez', '+5492345222222', loc2, false, true, b || '/yo.jpg'), 'ok'),
       (80, 'A', 'A acepta a B2 en el pedido 4 (con su precio propuesto)', format(accept, b2, j4, b2, j4), 'ok'),
-      (81, 'admin', 'El acuerdo del 4 usa el precio propuesto ($ 25.000)', format('select 1 from public.jobs where id = %L and agreed_price_ars = 25000 and agreed_at = desired_at', j4), 'count:1'),
+      (81, 'admin', 'El acuerdo del 4 usa el precio propuesto ($ 25.000)', format('select 1 from public.jobs j join public.job_agreements g on g.job_id = j.id where j.id = %L and g.price_ars = 25000 and g.agreed_at = j.desired_at', j4), 'count:1'),
       (82, 'B2', 'B2 (aceptado en un trabajo asignado) no puede cambiar de localidad', format(prof, 'Bruno', 'Bustos', '+5492345222333', loc2, false, true, b2 || '/yo.jpg'), 'err:No podés cambiar de localidad'),
       (83, 'B2', 'B2 tampoco puede dejar de ser cortador', format(prof, 'Bruno', 'Bustos', '+5492345222333', loc, true, false, b2 || '/yo.jpg'), 'err:postulaciones activas'),
       (84, 'B2', 'B2 sí puede editar sus datos sin cambiar de localidad', format(prof, 'Bruno', 'Bustos', '+5492345222334', loc, false, true, b2 || '/yo.jpg'), 'ok'),
@@ -172,7 +182,9 @@ begin
       (91, 'admin', 'anon no puede ejecutar las RPCs nuevas', 'select 1 from pg_proc p where p.pronamespace = ''public''::regnamespace and p.proname in (''accept_application'', ''get_job_applicants'', ''get_job_contact'') and has_function_privilege(''anon'', p.oid, ''execute'')', 'count:0'),
       (92, 'admin', 'jobs sigue sin columnas de dirección ni teléfono', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''jobs'' and column_name ilike any (array[''%address%'', ''%direcc%'', ''%phone%''])', 'count:0'),
       (93, 'admin', 'Ningún aviso tiene dirección, teléfono ni apellido', 'select 1 from public.notifications where payload::text ilike any (array[''%Calle Falsa%'', ''%Mitre 450%'', ''%Rivadavia%'', ''%Belgrano 9%'', ''%+549%'', ''%Benítez%'', ''%Bustos%'', ''%Álvarez%''])', 'count:0'),
-      (94, 'admin', 'Ningún pedido asignado sin acuerdo completo', 'select 1 from public.jobs where status in (''asignado'', ''realizado'') and (agreed_price_ars is null or agreed_at is null or assigned_cutter_id is null)', 'count:0'),
+      (94, 'admin', 'Ningún pedido asignado sin acuerdo', 'select 1 from public.jobs j where j.status in (''asignado'', ''realizado'') and not exists (select 1 from public.job_agreements g where g.job_id = j.id)', 'count:0'),
+      (96, 'admin', 'jobs ya no tiene columnas de acuerdo', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''jobs'' and column_name in (''assigned_application_id'', ''assigned_cutter_id'', ''agreed_price_ars'', ''agreed_at'', ''assigned_at'')', 'count:0'),
+      (97, 'admin', 'job_agreements sin políticas de escritura', 'select 1 from pg_policies where schemaname = ''public'' and tablename = ''job_agreements'' and cmd <> ''SELECT''', 'count:0'),
       (95, 'admin', 'Ninguna postulación pendiente en un pedido no publicado', 'select 1 from public.applications a join public.jobs j on j.id = a.job_id where a.status = ''pendiente'' and j.status <> ''publicado''', 'count:0')
     ) as x(n, who, label, sql, expected)
     order by n

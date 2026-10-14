@@ -16,7 +16,7 @@ type Props = {
 
 /** Hasta 5 fotos del terreno. Se achican en el navegador antes de subir. */
 export function PhotoPicker({ photos, onChange, disabled }: Props) {
-  const existingPaths = photos.flatMap((p) => (p.kind === 'existing' ? [p.path] : []));
+  const existingPaths = photos.flatMap((p) => (p.kind === 'new' ? [] : [p.path]));
   const { data: urls } = useJobPhotoUrls(existingPaths);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);

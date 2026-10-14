@@ -51,6 +51,8 @@ export const router = createBrowserRouter([
                   { path: 'cortar', lazy: () => import('../pages/cortar/TrabajosPage').then((m) => ({ Component: m.TrabajosPage })) },
                   { path: 'cortar/trabajo/:jobId', lazy: () => import('../pages/cortar/TrabajoDetallePage').then((m) => ({ Component: m.TrabajoDetallePage })) },
                   { path: 'cortar/postulaciones', lazy: () => import('../pages/cortar/MisPostulacionesPage').then((m) => ({ Component: m.MisPostulacionesPage })) },
+                  { path: 'trabajo/:jobId', lazy: () => import('../pages/TrabajoRedirectPage').then((m) => ({ Component: m.TrabajoRedirectPage })) },
+                  { path: 'persona/:personId', lazy: () => import('../pages/PersonaPage').then((m) => ({ Component: m.PersonaPage })) },
                   { path: 'avisos', lazy: () => import('../pages/AvisosPage').then((m) => ({ Component: m.AvisosPage })) },
                   { path: 'perfil', lazy: () => import('../pages/PerfilPage').then((m) => ({ Component: m.PerfilPage })) },
                   { path: '*', lazy: () => import('../pages/NotFoundPage').then((m) => ({ Component: m.NotFoundPage })) },

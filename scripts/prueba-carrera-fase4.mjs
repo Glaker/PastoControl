@@ -89,7 +89,7 @@ async function applyAll(jobId, who, proposals = {}) {
 const ok = (r) => r.status === 'fulfilled' && !r.value.error;
 const errMsg = (r) => (r.status === 'rejected' ? String(r.reason) : r.value.error?.message ?? '');
 async function state(jobId) {
-  const job = must(await client.sb.from('jobs').select('status, assigned_application_id, assigned_cutter_id, agreed_price_ars, agreed_at, desired_at, price_ars').eq('id', jobId).single(), 'job');
+  const job = must(await client.sb.from('jobs').select('status, desired_at, price_ars, agreement:job_agreements!job_agreements_job_id_fkey(application_id, cutter_id, price_ars, agreed_at)').eq('id', jobId).single(), 'job');
   const apps = must(await client.sb.from('applications').select('id, cutter_id, status, proposed_price_ars, proposed_at').eq('job_id', jobId), 'apps');
   return { job, apps };
 }
@@ -111,7 +111,7 @@ function checkCommon(scenario, round, { job, apps }) {
   const accepted = apps.filter((a) => a.status === 'aceptada');
   invariant(scenario, round, accepted.length <= 1, `hay ${accepted.length} aceptadas`);
   if (job.status === 'asignado') {
-    invariant(scenario, round, accepted.length === 1 && accepted[0].id === job.assigned_application_id, 'asignado sin su aceptada');
+    invariant(scenario, round, accepted.length === 1 && accepted[0].id === job.agreement?.application_id, 'asignado sin su aceptada o sin acuerdo');
   } else {
     invariant(scenario, round, accepted.length === 0, `pedido ${job.status} con una aceptada`);
   }
@@ -152,7 +152,7 @@ const scenarios = {
     checkCommon('B', round, st);
     invariant('B', round, ok(acc) !== ok(upd), `aceptar=${ok(acc)} cambiar=${ok(upd)} (tiene que ganar exactamente uno)`);
     if (ok(acc)) {
-      invariant('B', round, st.job.agreed_price_ars === 20000, `se acordó ${st.job.agreed_price_ars} y el cliente vio 20000`);
+      invariant('B', round, st.job.agreement?.price_ars === 20000, `se acordó ${st.job.agreement?.price_ars} y el cliente vio 20000`);
       invariant('B', round, /ya no se puede editar/.test(errMsg(upd)), `cambiar falló con: ${errMsg(upd)}`);
       count('B', 'ganó aceptar (con el precio que vio el cliente)');
     } else {

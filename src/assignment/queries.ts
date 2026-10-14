@@ -14,7 +14,7 @@ export type Applicant = {
   created_at: string;
   /** Versión de la postulación: se manda tal cual al aceptar (no pasarla por Date: perdería microsegundos). */
   updated_at: string;
-  /** Estadísticas públicas: se completan en la Fase 5. */
+  /** Estadísticas públicas como cortador (yes_pct es null con menos de 5 calificaciones). */
   done_jobs: number | null;
   yes_pct: number | null;
 };

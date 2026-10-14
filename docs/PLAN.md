@@ -11,8 +11,8 @@ Se actualiza al cerrar cada fase.
 | 1 | Cuentas, perfiles, avatars, onboarding, recuperar clave, actualización de la PWA | ✅ terminada y commiteada |
 | 2 | Trabajos: jobs, job_private, job-photos, publicar/editar/cancelar, listas y detalles | ✅ terminada y commiteada |
 | 3 | Postulaciones y notificaciones (bandeja + contador) | ✅ terminada y commiteada |
-| 4 | Aceptación atómica, postulantes, contacto + WhatsApp, cancelaciones después de asignar, prueba de carrera | 🟡 implementada, esperando revisión |
-| 5 | Marcar realizado, calificaciones, estadísticas, perfil público, volver a publicar | ⏳ pendiente |
+| 4 | Aceptación atómica, postulantes, contacto + WhatsApp, cancelaciones después de asignar, prueba de carrera | ✅ terminada y commiteada |
+| 5 | Acuerdo en tabla aparte, marcar realizado, calificaciones, estadísticas, perfil público, volver a publicar | 🟡 implementada, esperando revisión |
 | 6 | Web Push | ⏳ pendiente |
 
 Pendiente del dueño del proyecto (no bloquea fases): configurar el SMTP propio en Supabase.
@@ -86,6 +86,11 @@ operada con el MCP (limitado a este proyecto).
 - Los mensajes que el dueño pega (aprobaciones, decisiones, pedidos de fase) son suyos: si están
   claros, se ejecutan directamente, sin reconfirmar.
 - Una fase a la vez; al terminar, frenar para revisión.
+- Limpieza de usuarios de prueba: el `delete` de `sql/tests/limpiar_usuarios_prueba.sql` (exactamente
+  ese, con sus tres patrones de mail de prueba) está aprobado de forma permanente: al final de cada
+  fase se corre por el MCP sin pedir permiso y se informa cuántas filas borró. Cualquier otra
+  sentencia destructiva sigue necesitando aprobación.
+- Responder siempre en español rioplatense.
 - Si algo parece mal planteado, avisar con el motivo antes de cambiarlo.
 - Nunca la service_role key en el front, ni tokens o claves en archivos del repo.
 
@@ -114,6 +119,9 @@ operada con el MCP (limitado a este proyecto).
   Las RPCs de postulación usan `FOR SHARE` sobre el trabajo.
 - **Contacto:** `get_job_contact` devuelve dirección, nombre completo y WhatsApp de la contraparte,
   solo a las dos partes y solo con el trabajo asignado o realizado.
+- **Acuerdo** (Fase 5): precio y horario acordados, quién es el elegido y quién canceló un asignado
+  viven en `job_agreements`, que solo leen las dos partes (también en la API). Los cortadores no
+  elegidos ven el pedido como asignado/realizado/cancelado, pero no el acuerdo ni quién fue elegido.
 - **Calificaciones:** «¿Volverías a trabajar con esta persona? Sí/No», una por lado. Nadie las lee
   (RLS sin políticas y sin grants). El perfil público muestra trabajos realizados y % de «sí»:
   - solo con 5 calificaciones o más;
@@ -153,11 +161,16 @@ operada con el MCP (limitado a este proyecto).
   created_at, updated_at. Computed field `is_expired`.
   Lectura: el dueño (todos los suyos), los cortadores de la localidad (publicados no vencidos) y los
   cortadores que se postularon (cualquier estado), en una sola política SELECT (0009, ampliada en 0010).
-  Acuerdo (0014): assigned_application_id, assigned_cutter_id, agreed_price_ars, agreed_at,
-  assigned_at; obligatorios con status asignado/realizado y quedan como historial si se cancela.
-  **Embeds:** hay dos FK entre jobs y applications y tres entre jobs y profiles: siempre nombrar la
-  relación (`applications!applications_job_id_fkey(...)`, `job:jobs!applications_job_id_fkey(...)`,
-  `client:profiles!jobs_client_id_fkey(...)`). Sin el nombre, PostgREST responde PGRST201.
+  `cancelled_by` solo guarda al cliente: si cancela el cortador elegido queda null (lo verían los
+  no elegidos) y el autor va en `job_agreements.cancelled_by` (0020).
+  **Embeds:** con `job_agreements` hay caminos indirectos entre jobs, applications y profiles: siempre
+  nombrar la relación (`applications!applications_job_id_fkey(...)`, `job:jobs!applications_job_id_fkey(...)`,
+  `client:profiles!jobs_client_id_fkey(...)`, `agreement:job_agreements!job_agreements_job_id_fkey(...)`).
+  Sin el nombre, PostgREST responde PGRST201.
+- `job_agreements` (0018, reemplaza las columnas de acuerdo de jobs desde 0019): job_id (PK = un solo
+  acuerdo por pedido) → jobs, application_id (único) → applications, client_id, cutter_id → profiles,
+  price_ars, agreed_at, assigned_at, done_at, done_by, cancelled_by. Se crea en `accept_application` y
+  queda como historial si se cancela. Lectura: solo `client_id` o `cutter_id`; sin escritura directa.
 - `job_private` (0005): job_id, address. Lectura: solo el dueño del trabajo.
 - Bucket `job-photos` (0006): privado, 3 MB, jpeg/png/webp, `<uid>/<job_id>/...`. Lectura: el dueño
   (su carpeta) y quien puede ver el trabajo por RLS (solo las fotos listadas en `photo_paths`);
@@ -176,12 +189,12 @@ operada con el MCP (limitado a este proyecto).
   Se insertan solo con `private.notify` (lista blanca de campos del payload: zone, actor_name,
   price_ars, desired_at, proposed_price_ars, proposed_at, tz; cualquier otro campo hace fallar la RPC).
   dedupe_key: `postulacion_nueva:<app>:<attempt>`, `postulacion_editada:<app>:<attempt>:<edits>`,
-  `postulacion_retirada:<app>:<attempt>`, `pedido_cancelado:<job>`.
+  `postulacion_retirada:<app>:<attempt>`, `pedido_cancelado:<job>`, `trabajo_realizado:<job>`.
+- `ratings` (0021): job_id, rater_id, ratee_id, would_work_again, created_at; PK (job_id, rater_id).
+  RLS sin políticas y sin grants: nadie las lee, ni las partes. Solo se usan dentro de
+  `private.profile_stats`.
 
 ### Planeado
-- `jobs` (Fase 5): + done_at, done_by.
-- `ratings` (Fase 5): job_id, rater_id, ratee_id, would_work_again boolean, created_at;
-  `unique (job_id, rater_id)`. RLS sin políticas, sin grants.
 - `push_subscriptions` (Fase 6): user_id, endpoint, p256dh, auth, created_at.
 
 ## RPCs
@@ -195,9 +208,12 @@ operada con el MCP (limitado a este proyecto).
 | `apply_to_job`, `update_application`, `withdraw_application` | 3 | Postularse (reusa la fila si estaba retirada), editar, retirar. Bloqueos: perfil `FOR SHARE` → trabajo `FOR SHARE` → postulación `FOR UPDATE`. Avisan al cliente. Hasta 20 pendientes por cortador. |
 | `mark_notifications_read(p_ids default null)` | 3 | Marca avisos propios como leídos (los indicados o todos). Devuelve cuántos. |
 | `accept_application(p_application_id, p_expected_updated_at)` | 4 | Aceptación atómica: trabajo `FOR UPDATE`, versión de la postulación, acuerdo (propuesta o lo publicado; el horario tiene que ser futuro), rechaza las demás pendientes y avisa a todos. |
-| `get_job_applicants(p_job_id)` | 4 | Postulantes (sin retiradas) con nombre visible, foto y propuesta, solo para el dueño. `done_jobs`/`yes_pct` vuelven null hasta la Fase 5 (ya están en la firma para no recrear la función). |
-| `get_job_contact(p_job_id)` | 4 | Nombre completo, WhatsApp y dirección de la contraparte + el acuerdo; solo las dos partes y solo con el trabajo asignado o realizado. |
-| `mark_job_done`, `rate_job`, `get_profile_stats` | 5 | Realizado, calificación, estadísticas públicas. |
+| `get_job_applicants(p_job_id)` | 4 (+5) | Postulantes (sin retiradas) con nombre visible, foto y propuesta, solo para el dueño. Fase 5: `done_jobs` (realizados como cortador) y `yes_pct`. |
+| `get_job_contact(p_job_id)` | 4 (+5) | Nombre completo, WhatsApp y dirección de la contraparte + el acuerdo; solo las dos partes y solo con el trabajo asignado o realizado. Fase 5: lee `job_agreements`. |
+| `mark_job_done(p_job_id)` | 5 | Cualquiera de las dos partes, con el trabajo asignado y desde el día acordado (hora local). Pasa a realizado y avisa a la otra parte. |
+| `rate_job(p_job_id, p_would_work_again)` | 5 | Una calificación por parte, con el trabajo realizado. No se puede cambiar. |
+| `has_rated_job(p_job_id)` | 5 | Si el que llama ya calificó (sin decir qué puso). |
+| `get_profile_stats(p_user_id)` | 5 | done_as_cutter, done_as_client y yes_pct (null con menos de 5; lote semanal; redondeado a la decena). Nunca la cantidad. |
 | `save_push_subscription` / `delete_push_subscription` | 6 | Web Push. |
 
 ## Fases
@@ -271,7 +287,7 @@ Verificación (14/10/2026):
 - Limpieza: los 15 usuarios de prueba de punta a punta se borraron por el MCP (con aprobación del
   dueño); sus archivos de Storage, antes por la API. En la base queda solo el usuario real.
 
-### Fase 4 · Asignación (implementada, esperando revisión)
+### Fase 4 · Asignación ✅ (aprobada y commiteada)
 - [x] `accept_application` atómica, `get_job_applicants`, `get_job_contact` + botón de WhatsApp.
 - [x] Cancelaciones después de asignar (cliente o cortador aceptado), con aviso a la otra parte.
 - [x] Localidad: no se cambia con pedidos publicados o asignados ni postulaciones pendientes o
@@ -288,10 +304,8 @@ Decisiones de la Fase 4:
   se puede elegir una postulación con horario futuro.
 - `updated_at` de applications como versión con `clock_timestamp()` (0017): con `now()`, dos cambios
   en la misma transacción dejaban el mismo valor (lo encontró la prueba SQL).
-- Los cortadores no elegidos siguen viendo el pedido (RLS de la Fase 3), así que la API les devuelve
-  también el acuerdo (precio y horario) del elegido. No es dato privado según las reglas, pero la
-  interfaz solo les muestra lo publicado. Si se quiere ocultar también en la API, habría que mover el
-  acuerdo a una tabla aparte (como job_private).
+- Los cortadores no elegidos siguen viendo el pedido (RLS de la Fase 3). En la Fase 4 la API les
+  devolvía también el acuerdo; el dueño decidió ocultarlo y en la Fase 5 se movió a `job_agreements`.
 - Después de cancelar, nadie recibe más el contacto.
 - El mensaje inicial de WhatsApp se arma en la app (wa.me con texto), sin pasar datos por el servidor.
 
@@ -323,9 +337,59 @@ Verificación (14/10/2026):
 - Limpieza: 22 usuarios de prueba borrados por el MCP con aprobación del dueño (sus archivos, antes
   por la API). En la base queda solo el usuario real.
 
-### Fase 5 · Cierre
-- Marcar realizado, `rate_job`, `get_profile_stats`, perfil público `/persona/:id`, volver a publicar
-  (`/pedir/nuevo?desde=<job_id>`; las fotos se copian a la carpeta nueva).
+### Fase 5 · Cierre (implementada, esperando revisión)
+- [x] Acuerdo fuera de `jobs` (decisión del dueño): `job_agreements` (0018), columnas viejas borradas
+  y RPCs adaptadas (0019, destructivo, aprobado), autor de la cancelación de un asignado (0020).
+  Después del cambio pasaron de nuevo todas las pruebas SQL de las fases 1–4, las de red de las
+  fases 3 y 4 y la prueba de carrera completa (60 y 120 rondas, 0 invariantes rotas).
+- [x] `get_job_contact` con el trabajo asignado o realizado.
+- [x] Marcar realizado, calificar (Sí/No, con confirmación), estadísticas públicas (0021).
+- [x] Perfil público `/persona/:id`: foto, nombre visible, roles, localidad, desde cuándo, trabajos
+  realizados (como cortador y/o como cliente, según el rol) y % de «volverían a trabajar» o «todavía no
+  hay suficientes calificaciones». Links desde la lista de postulantes, el detalle del trabajo del
+  cortador, el panel del trabajo asignado y «Mi perfil» («Ver mi perfil público»).
+- [x] Volver a publicar: `/pedir/nuevo?desde=<job_id>` (pedido propio cancelado o realizado) precarga
+  zona, dirección, precio, nota y fotos; la fecha queda vacía. Las fotos se copian a la carpeta del
+  pedido nuevo con `storage.copy` (si algo falla se borran las copias).
+
+Front: `src/completion/` (queries, MarkDoneButton, RatingCard), `src/pages/PersonaPage.tsx`,
+`src/pages/TrabajoRedirectPage.tsx` (`/trabajo/:id` lleva al detalle del lado que corresponde; lo usa el
+aviso `trabajo_realizado`, que le llega a cualquiera de las dos partes). En «Mis postulaciones» una
+aceptada pasa a «Anteriores» cuando el trabajo deja de estar asignado, con el estado del trabajo.
+
+Decisiones de la Fase 5:
+- `jobs.cancelled_by` ya no guarda al cortador elegido (los no elegidos lo verían): queda null y el
+  autor va en `job_agreements.cancelled_by`. Para el no elegido, el pedido figura «cancelado» sin más.
+- Una vez realizado no se puede cancelar ni desmarcar. La calificación tampoco se puede cambiar.
+- `has_rated_job` existe para que la interfaz sepa si mostrar la pregunta, sin leer `ratings`.
+- Copiar una foto a la carpeta propia requiere poder leerla (`can_see_job_photo`): para cualquier otro
+  usuario equivale a descargarla y subirla, así que no expone nada nuevo.
+
+Verificación (14/10/2026):
+- `sql/tests/fase5_seguridad.sql`: 61/61 (anon, cliente A, cortador elegido B, no elegido B2, tercero
+  C): realizado antes del día, por no partes, aviso, no cancelar un realizado, contacto con el
+  realizado, calificaciones ilegibles para todos (también las partes), doble calificación, umbral de 5,
+  lote semanal (la de esta semana no cuenta), redondeo (83,3 → 80; 85,7 → 90), estadísticas en
+  postulantes, volver a publicar. Con el esquema final: Fase 1 35/35, Fase 2 97/97, Fase 3 95/95,
+  Fase 4 82/82 (ajustada a `job_agreements`; 11 casos nuevos). Total 370/370. Sin rastro después.
+- `scripts/verificar-red-fase5.mjs`: 29/29 con 207 respuestas HTTP y los eventos de Realtime. Con el
+  trabajo realizado, la dirección y el WhatsApp solo los recibe la contraparte; el no elegido ve el
+  pedido realizado sin acuerdo; nadie (ni las partes) recibe filas de `ratings` ni los campos
+  `would_work_again`/`rater_id`/`ratee_id`; las estadísticas no traen cantidades; ningún aviso revela
+  una calificación. `verificar-red-fase4.mjs` ampliado: 27/27 (el no elegido no recibe el acuerdo ni
+  quién es el elegido); Fase 3: 30/30.
+- Navegador (en `ui.localhost:5173`, para no tocar la sesión real de `localhost`): trabajo asignado
+  hoy → «Marcar como realizado» habilitado; realizado → tarjeta «¿Volverías a trabajar con…?» y luego
+  «Ya calificaste»; «Mis postulaciones» → Anteriores con Aceptada + Realizado; aviso «Trabajo
+  realizado» → `/trabajo/:id` → detalle del cliente; «Volver a publicar» con los datos y la foto
+  precargados; postulantes con «1 trabajo realizado · todavía sin suficientes calificaciones» y «Ver el
+  perfil de…»; perfil público. Con la ventana de Chrome oculta los modales de confirmación no se abren:
+  marcar, calificar y publicar se hicieron por la API con los mismos usuarios y se revisó el resultado
+  en las pantallas. 6 pantallas a 360 px: sin scroll horizontal, ningún botón de menos de 44 px.
+- `tsc -b` y build sin errores. Advisors: 0029 en las 15 RPCs (por diseño), `ratings` con RLS y sin
+  políticas (a propósito), «leaked password protection» e índices sin uso.
+- Limpieza: 33 usuarios de prueba borrados por el MCP (sus archivos, antes por la API). En la base
+  queda solo el usuario real.
 
 ### Fase 6 · Web Push
 - VAPID, `push_subscriptions`, Edge Function al insertar en `notifications`, instrucciones de instalación en iOS.
@@ -369,7 +433,12 @@ Verificación (14/10/2026):
 | `sql/0016_cancelacion_asignados_y_localidad.sql` | 4 | `cancel_job` (asignados), `withdraw_application` (mensaje), `upsert_my_profile` (localidad) |
 | `sql/0017_postulaciones_version.sql` | 4 | `applications.updated_at` con `clock_timestamp()` (versión confiable) |
 | `sql/tests/fase3_seguridad.sql` | 3 | 95 casos |
-| `sql/tests/fase4_seguridad.sql` | 4 | 71 casos |
+| `sql/tests/fase4_seguridad.sql` | 4 | 82 casos (ajustada a `job_agreements` en la Fase 5) |
+| `sql/0018_acuerdos.sql` | 5 | `job_agreements` (un acuerdo por pedido, solo las dos partes) + copia de los acuerdos existentes |
+| `sql/0019_acuerdo_fuera_de_jobs.sql` | 5 | **Destructivo, aprobado:** borra las columnas de acuerdo de `jobs`; `accept_application`, `get_job_contact` y `cancel_job` usan `job_agreements` |
+| `sql/0020_cancelacion_privada.sql` | 5 | `job_agreements.cancelled_by`; `cancel_job` ya no pone al cortador en `jobs.cancelled_by` |
+| `sql/0021_realizado_y_calificaciones.sql` | 5 | `ratings`, `private.profile_stats`, `get_profile_stats`, `mark_job_done`, `rate_job`, `has_rated_job`, estadísticas en `get_job_applicants` |
+| `sql/tests/fase5_seguridad.sql` | 5 | 61 casos |
 | `sql/tests/limpiar_usuarios_prueba.sql` | 1 | Borra usuarios de pruebas de punta a punta |
 
 Scripts (revisan las respuestas de red con sesiones reales; crean usuarios `pastocontrol.prueba.*`
@@ -378,3 +447,5 @@ que después se borran con `sql/tests/limpiar_usuarios_prueba.sql`):
 - `node scripts/verificar-red-fase3.mjs` (Fase 3: postulaciones, avisos y Realtime).
 - `node scripts/verificar-red-fase4.mjs` (Fase 4: postulantes, contacto y cancelación).
 - `node scripts/prueba-carrera-fase4.mjs [rondas]` (Fase 4: carreras con sesiones en paralelo).
+- `node scripts/verificar-red-fase5.mjs` (Fase 5: realizado, calificaciones y estadísticas; el
+  trabajo se crea para dentro de 20 minutos, así que hay que correrlo antes de las 23:40 hora local).

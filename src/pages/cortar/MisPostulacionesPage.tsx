@@ -15,8 +15,11 @@ export function MisPostulacionesPage() {
   if (isPending) return <FullPageLoader label="Cargando tus postulaciones…" />;
   if (error) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
-  const active = applications.filter((a) => a.status === 'pendiente' || a.status === 'aceptada');
-  const past = applications.filter((a) => a.status !== 'pendiente' && a.status !== 'aceptada');
+  // Una aceptada sigue activa mientras el trabajo está asignado; realizada pasa a "Anteriores".
+  const isActive = (a: MyApplication) =>
+    a.status === 'pendiente' || (a.status === 'aceptada' && a.job.status === 'asignado');
+  const active = applications.filter(isActive);
+  const past = applications.filter((a) => !isActive(a));
 
   return (
     <Stack gap="lg">
@@ -68,7 +71,9 @@ function ApplicationCard({ application }: { application: MyApplication }) {
       <Stack gap="xs">
         <Group gap="xs">
           <ApplicationStatusBadge status={application.status} />
-          {application.status === 'pendiente' && jobStatus !== 'publicado' && <JobStatusBadge status={jobStatus} />}
+          {(application.status === 'pendiente' || application.status === 'aceptada') &&
+            jobStatus !== 'publicado' &&
+            jobStatus !== 'asignado' && <JobStatusBadge status={jobStatus} />}
         </Group>
         <Group gap={6} wrap="nowrap" align="flex-start">
           <IconMapPin size={20} aria-hidden style={{ flex: 'none', marginTop: 2 }} />

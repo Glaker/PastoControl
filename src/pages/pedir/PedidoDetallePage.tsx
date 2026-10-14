@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconBan, IconCheck, IconCircleCheck, IconClockExclamation, IconPencil } from '@tabler/icons-react';
+import { IconBan, IconCheck, IconCircleCheck, IconClockExclamation, IconPencil, IconRepeat } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -50,7 +50,7 @@ export function PedidoDetallePage() {
   // Con postulaciones pendientes no se edita (los cortadores se postularon a lo publicado).
   const editable = isPublished && pending === 0;
   const cancelledByCutter =
-    job.status === 'cancelado' && !!job.cancelled_by && job.cancelled_by === job.assigned_cutter_id;
+    job.status === 'cancelado' && !!job.agreement?.cancelled_by && job.agreement.cancelled_by === job.agreement.cutter_id;
 
   const onCancel = async () => {
     const ok = await confirmAction({
@@ -106,7 +106,13 @@ export function PedidoDetallePage() {
       )}
       {job.status === 'asignado' && (
         <Alert color="violet" icon={<IconCircleCheck aria-hidden />} title="Trabajo asignado">
-          Ya elegiste quién corta el pasto. Coordinen los detalles por WhatsApp.
+          Ya elegiste quién corta el pasto. Coordinen los detalles por WhatsApp. Cuando esté hecho,
+          cualquiera de los dos lo marca como realizado.
+        </Alert>
+      )}
+      {job.status === 'realizado' && (
+        <Alert color="teal" icon={<IconCircleCheck aria-hidden />} title="Trabajo realizado">
+          ¡Listo! Si querés, calificá a quien cortó el pasto y volvé a publicar el pedido cuando lo necesites.
         </Alert>
       )}
 
@@ -125,8 +131,18 @@ export function PedidoDetallePage() {
 
       {isPublished && <ApplicantsList job={job} />}
 
-      {job.status === 'asignado' && profile && (
+      {(job.status === 'asignado' || job.status === 'realizado') && profile && (
         <AssignedPanel job={job} viewer="cliente" myName={displayName(profile)} />
+      )}
+
+      {(job.status === 'cancelado' || job.status === 'realizado') && (
+        <Button
+          component={Link}
+          to={`/pedir/nuevo?desde=${job.id}`}
+          leftSection={<IconRepeat size={20} aria-hidden />}
+        >
+          Volver a publicar
+        </Button>
       )}
 
       {isPublished && pending > 0 && (

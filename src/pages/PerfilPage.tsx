@@ -1,7 +1,8 @@
 import { Avatar, Badge, Button, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconLogout, IconPencil } from '@tabler/icons-react';
+import { IconCheck, IconLogout, IconPencil, IconUserCircle } from '@tabler/icons-react';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthProvider';
 import { FullPageLoader } from '../components/FullPageLoader';
 import { formatPhone } from '../lib/phone';
@@ -81,6 +82,14 @@ export function PerfilPage() {
       <Text size="sm" c="dimmed">
         Desde «Editar mis datos» también podés cambiar si pedís cortes, cortás pasto o las dos cosas.
       </Text>
+      <Button
+        component={Link}
+        to={`/persona/${profile.id}`}
+        variant="default"
+        leftSection={<IconUserCircle size={20} aria-hidden />}
+      >
+        Ver mi perfil público
+      </Button>
 
       <Divider label="Cuenta" labelPosition="left" mt="md" />
       <Button

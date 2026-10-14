@@ -107,7 +107,8 @@ async function probe(sb) {
   return {
     contacto: await sb.rpc('get_job_contact', { p_job_id: jobId }),
     postulantes: await sb.rpc('get_job_applicants', { p_job_id: jobId }),
-    pedido: await sb.from('jobs').select('*, applications!applications_job_id_fkey(*), job_private(*)').eq('id', jobId).maybeSingle(),
+    pedido: await sb.from('jobs').select('*, applications!applications_job_id_fkey(*), job_private(*), agreement:job_agreements!job_agreements_job_id_fkey(*)').eq('id', jobId).maybeSingle(),
+    acuerdos: await sb.from('job_agreements').select('*'),
     direccion: await sb.from('job_private').select('*'),
     privados: await sb.from('profile_private').select('*'),
     perfilesConPrivados: await sb.from('profiles').select('*, profile_private(*)'),
@@ -172,7 +173,16 @@ check('Asignado, el no elegido / tercero / anon no reciben contacto', ['noElegid
 check('Cancelado, nadie recibe contacto', Object.values(cancelado).every((r) => !!r.contacto.error));
 check('Solo el cliente recibe la lista de postulantes', !antes.cliente.postulantes.error && ['elegido', 'noElegido', 'tercero', 'anon'].every((w) => !!antes[w].postulantes.error));
 check('La lista de postulantes no trae apellidos ni WhatsApp', !JSON.stringify(antes.cliente.postulantes.data).includes(LAST_NAMES.elegido) && !JSON.stringify(antes.cliente.postulantes.data).includes(PHONES.elegido));
-check('El acuerdo usa la contraoferta del elegido ($ 18.000)', asignado.cliente.pedido.data?.agreed_price_ars === 18000);
+check('El acuerdo usa la contraoferta del elegido ($ 18.000)', asignado.cliente.pedido.data?.agreement?.price_ars === 18000);
+check('El elegido también recibe el acuerdo', asignado.elegido.pedido.data?.agreement?.price_ars === 18000);
+check('El no elegido ve el pedido asignado pero sin acuerdo (ni precio, ni horario, ni quién)',
+  asignado.noElegido.pedido.data?.status === 'asignado' && asignado.noElegido.pedido.data?.agreement === null && (asignado.noElegido.acuerdos.data ?? []).length === 0);
+check('El tercero y anon no reciben ningún acuerdo',
+  !asignado.tercero.pedido.data && (asignado.tercero.acuerdos.data ?? []).length === 0 && (!!asignado.anon.acuerdos.error || (asignado.anon.acuerdos.data ?? []).length === 0));
+// Quién es el elegido: no tiene que aparecer en pedidos, postulaciones, acuerdos ni avisos del no
+// elegido (los perfiles públicos sí listan a todos, por eso se excluyen).
+const whoLeaks = found('noElegido', [elegido.uid]).filter((x) => !x.includes('/rest/v1/profiles'));
+check('Ninguna respuesta del no elegido revela quién es el elegido (antes, asignado y cancelado)', whoLeaks.length === 0, whoLeaks.join(', '));
 
 // Avisos en vivo
 const kinds = (who) => events[who].map((n) => n.kind);

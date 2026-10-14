@@ -94,13 +94,20 @@ export function ApplicationPanel({ job, application }: Props) {
     );
   }
 
-  // Me eligieron: contacto del cliente (dirección y WhatsApp) y "Cancelar trabajo".
-  if (application.status === 'aceptada' && job.status === 'asignado') {
+  // Me eligieron: contacto del cliente (dirección y WhatsApp), marcar realizado / calificar, cancelar.
+  if (application.status === 'aceptada' && (job.status === 'asignado' || job.status === 'realizado')) {
     return (
       <Stack gap="md">
-        <Alert color="teal" icon={<IconConfetti aria-hidden />} title="¡Te eligieron!">
-          {job.client.first_name} aceptó tu postulación. Escribile por WhatsApp para coordinar.
-        </Alert>
+        {job.status === 'asignado' ? (
+          <Alert color="teal" icon={<IconConfetti aria-hidden />} title="¡Te eligieron!">
+            {job.client.first_name} aceptó tu postulación. Escribile por WhatsApp para coordinar. Cuando
+            termines, cualquiera de los dos lo marca como realizado.
+          </Alert>
+        ) : (
+          <Alert color="teal" icon={<IconConfetti aria-hidden />} title="Trabajo realizado">
+            ¡Buen trabajo! Si querés, calificá a {job.client.first_name}.
+          </Alert>
+        )}
         {profile && <AssignedPanel job={job} viewer="cortador" myName={displayName(profile)} />}
       </Stack>
     );
@@ -122,7 +129,7 @@ export function ApplicationPanel({ job, application }: Props) {
           <ProposalSummary job={job} application={application} />
           {application.status === 'cancelada' && (
             <Text c="dimmed">
-              {job.cancelled_by && job.cancelled_by === job.assigned_cutter_id
+              {job.agreement?.cancelled_by === application.cutter_id
                 ? 'Cancelaste este trabajo.'
                 : 'El cliente canceló el pedido.'}
             </Text>

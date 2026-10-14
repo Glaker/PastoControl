@@ -1,8 +1,9 @@
 import { Alert, Button, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertTriangle, IconBan, IconBrandWhatsapp, IconCheck, IconHome, IconPhone, IconUser } from '@tabler/icons-react';
+import { IconAlertTriangle, IconBan, IconBrandWhatsapp, IconCheck, IconHome, IconPhone, IconUser, IconUserCircle } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import { applicationKeys } from '../applications/queries';
 import { confirmAction } from '../lib/confirm';
 import { friendlyError } from '../lib/errors';
@@ -10,6 +11,7 @@ import { formatDateTimeLong } from '../lib/format';
 import { formatPhone, whatsappLink } from '../lib/phone';
 import { jobKeys, type Job } from '../jobs/queries';
 import { cancelJob } from '../jobs/saveJob';
+import { MarkDoneButton, RatingCard } from '../completion/CompletionParts';
 import { useJobContact } from './queries';
 
 type Props = {
@@ -21,12 +23,16 @@ type Props = {
 };
 
 /**
- * Trabajo asignado: datos de contacto de la contraparte (por get_job_contact, solo a las dos partes)
- * con botón de WhatsApp, y "Cancelar trabajo" separado y con confirmación.
+ * Trabajo asignado o realizado: datos de contacto de la contraparte (por get_job_contact, solo a las
+ * dos partes) con botón de WhatsApp. Asignado: "Marcar como realizado" (desde el día acordado) y
+ * "Cancelar trabajo" separado y con confirmación. Realizado: calificar a la otra parte.
  */
 export function AssignedPanel({ job, viewer, myName }: Props) {
   const queryClient = useQueryClient();
-  const { data: contact, isPending, error, refetch } = useJobContact(job.id, job.status === 'asignado');
+  const active = job.status === 'asignado' || job.status === 'realizado';
+  const { data: contact, isPending, error, refetch } = useJobContact(job.id, active);
+  // Perfil público de la contraparte (para el cliente, el cortador elegido; para el cortador, el cliente).
+  const counterpartId = viewer === 'cliente' ? job.agreement?.cutter_id : job.client_id;
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
@@ -114,6 +120,16 @@ export function AssignedPanel({ job, viewer, myName }: Props) {
               >
                 Escribir por WhatsApp
               </Button>
+              {counterpartId && (
+                <Button
+                  component={Link}
+                  to={`/persona/${counterpartId}`}
+                  variant="default"
+                  leftSection={<IconUserCircle size={20} aria-hidden />}
+                >
+                  Ver su perfil
+                </Button>
+              )}
               <Text size="sm" c="dimmed">
                 PastoControl no cobra ni intermedia en el pago: lo arreglan entre ustedes.
               </Text>
@@ -122,22 +138,31 @@ export function AssignedPanel({ job, viewer, myName }: Props) {
         </Stack>
       </Card>
 
+      {job.status === 'asignado' && (
+        <MarkDoneButton job={job} counterpartName={contact?.first_name ?? (viewer === 'cliente' ? 'la persona que elegiste' : 'el cliente')} />
+      )}
+      {job.status === 'realizado' && contact && <RatingCard job={job} counterpartFirstName={contact.first_name} />}
+
       {cancelError && (
         <Alert color="red" title="No se pudo" role="alert">
           {cancelError}
         </Alert>
       )}
 
-      <Divider mt="lg" label="Acciones importantes" labelPosition="left" />
-      <Button
-        variant="outline"
-        color="red"
-        loading={cancelling}
-        leftSection={<IconBan size={20} aria-hidden />}
-        onClick={() => void onCancel()}
-      >
-        Cancelar trabajo
-      </Button>
+      {job.status === 'asignado' && (
+        <>
+          <Divider mt="lg" label="Acciones importantes" labelPosition="left" />
+          <Button
+            variant="outline"
+            color="red"
+            loading={cancelling}
+            leftSection={<IconBan size={20} aria-hidden />}
+            onClick={() => void onCancel()}
+          >
+            Cancelar trabajo
+          </Button>
+        </>
+      )}
     </Stack>
   );
 }

@@ -1,5 +1,5 @@
 import { Alert, Button, Card, Stack, Text, Title } from '@mantine/core';
-import { IconBan, IconClipboardList, IconLock } from '@tabler/icons-react';
+import { IconBan, IconClipboardList, IconLock, IconUserCircle } from '@tabler/icons-react';
 import { Link, useParams } from 'react-router';
 import { ApplicationPanel } from '../../applications/ApplicationPanel';
 import { useMyApplicationForJob } from '../../applications/queries';
@@ -72,10 +72,10 @@ export function TrabajoDetallePage() {
 
       {job.status === 'cancelado' && (
         <Alert color="gray" icon={<IconBan aria-hidden />} title="Pedido cancelado">
-          {job.cancelled_by && job.cancelled_by === userId ? 'Cancelaste este trabajo.' : 'El cliente canceló este pedido.'}
+          {job.agreement?.cancelled_by === userId ? 'Cancelaste este trabajo.' : 'El cliente canceló este pedido.'}
         </Alert>
       )}
-      {job.status === 'asignado' && application.data?.status !== 'aceptada' && (
+      {(job.status === 'asignado' || job.status === 'realizado') && application.data?.status !== 'aceptada' && (
         <Alert color="gray" icon={<IconBan aria-hidden />} title="Ya tiene quien lo corte">
           El cliente eligió a otra persona para este trabajo.
         </Alert>
@@ -84,6 +84,14 @@ export function TrabajoDetallePage() {
       <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
           <ClientLine client={job.client} size={48} />
+          <Button
+            component={Link}
+            to={`/persona/${job.client.id}`}
+            variant="default"
+            leftSection={<IconUserCircle size={20} aria-hidden />}
+          >
+            Ver el perfil de {job.client.first_name}
+          </Button>
           <JobFacts job={job} showAgreed={application.data?.status === 'aceptada'} />
         </Stack>
       </Card>
@@ -97,7 +105,7 @@ export function TrabajoDetallePage() {
         </Stack>
       )}
 
-      {!(job.status === 'asignado' && application.data?.status === 'aceptada') && (
+      {!((job.status === 'asignado' || job.status === 'realizado') && application.data?.status === 'aceptada') && (
         <Alert color="blue" icon={<IconLock aria-hidden />}>
           La dirección exacta y el WhatsApp se comparten cuando el cliente acepta tu postulación.
         </Alert>

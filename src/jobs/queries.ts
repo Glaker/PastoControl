@@ -10,11 +10,13 @@ export type JobDisplayStatus = JobStatus | 'vencido';
 // Nunca incluye job_private: la dirección se pide aparte y solo la recibe el dueño (RLS).
 // Hay dos FK a profiles (client_id y cancelled_by): el embed nombra la del cliente.
 // applications: por RLS, el dueño recibe las de su pedido y un cortador solo la suya.
-// Hay dos FK entre jobs y applications (applications.job_id y jobs.assigned_application_id):
-// el embed nombra la de las postulaciones del pedido.
+// El embed de applications nombra la FK (applications.job_id): job_agreements también une jobs con
+// applications y PostgREST lo vería como otra relación posible.
+// agreement: el acuerdo (job_agreements). Por RLS solo lo reciben el cliente y el cortador elegido;
+// para cualquier otro llega null.
 export const JOB_SELECT =
   'id, client_id, locality_id, zone, price_ars, desired_at, notes, photo_paths, status, republished_from, cancelled_at, cancelled_by, created_at, updated_at, is_expired, ' +
-  'assigned_application_id, assigned_cutter_id, agreed_price_ars, agreed_at, assigned_at, ' +
+  'agreement:job_agreements!job_agreements_job_id_fkey(application_id, cutter_id, price_ars, agreed_at, assigned_at, done_at, done_by, cancelled_by), ' +
   'locality:localities(name, timezone), client:profiles!jobs_client_id_fkey(id, first_name, last_initial, avatar_path), ' +
   'applications!applications_job_id_fkey(id, status, cutter_id)';
 
@@ -34,15 +36,23 @@ export type Job = {
   created_at: string;
   updated_at: string;
   is_expired: boolean | null;
-  /** Acuerdo (desde la aceptación; queda como historial si después se cancela). */
-  assigned_application_id: string | null;
-  assigned_cutter_id: string | null;
-  agreed_price_ars: number | null;
-  agreed_at: string | null;
-  assigned_at: string | null;
+  /** Acuerdo (desde la aceptación; queda como historial si después se cancela). Solo las dos partes. */
+  agreement: JobAgreement | null;
   locality: { name: string; timezone: string };
   client: { id: string; first_name: string; last_initial: string; avatar_path: string | null };
   applications: { id: string; status: ApplicationStatus; cutter_id: string }[];
+};
+
+export type JobAgreement = {
+  application_id: string;
+  cutter_id: string;
+  price_ars: number;
+  agreed_at: string;
+  assigned_at: string;
+  done_at: string | null;
+  done_by: string | null;
+  /** Quién canceló el trabajo asignado (jobs.cancelled_by no guarda al cortador: lo verían los demás). */
+  cancelled_by: string | null;
 };
 
 export type ApplicationStatus = 'pendiente' | 'aceptada' | 'rechazada' | 'retirada' | 'cancelada';
@@ -152,12 +162,13 @@ export function useJobPhotoUrls(paths: string[]) {
 }
 
 /** Precio y horario que valen: los acordados si el trabajo está asignado o realizado; si no, los publicados. */
-export function jobTerms(job: Pick<Job, 'status' | 'price_ars' | 'desired_at' | 'agreed_price_ars' | 'agreed_at'>) {
-  const agreed = (job.status === 'asignado' || job.status === 'realizado') && job.agreed_price_ars !== null && job.agreed_at !== null;
+export function jobTerms(job: Pick<Job, 'status' | 'price_ars' | 'desired_at' | 'agreement'>) {
+  const a = job.agreement;
+  const agreed = (job.status === 'asignado' || job.status === 'realizado') && !!a;
   return {
     agreed,
-    priceArs: agreed ? job.agreed_price_ars! : job.price_ars,
-    at: agreed ? job.agreed_at! : job.desired_at,
+    priceArs: agreed ? a!.price_ars : job.price_ars,
+    at: agreed ? a!.agreed_at : job.desired_at,
   };
 }
 

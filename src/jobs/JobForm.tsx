@@ -24,6 +24,8 @@ type Props = {
   initial?: JobFormInitial;
   submitLabel: string;
   submitIcon: ReactNode;
+  /** Volver a publicar: las fotos de initial se copian al pedido nuevo en vez de reusarse. */
+  copyPhotos?: boolean;
   /** Antes de enviar (ej.: confirmar la publicación). Si devuelve false, no se envía. */
   beforeSubmit?: (input: JobInput) => Promise<boolean>;
   onSubmit: (input: JobInput) => Promise<void>;
@@ -39,9 +41,9 @@ type Values = {
   notes: string;
 };
 
-export function JobForm({ timeZone, initial, submitLabel, submitIcon, beforeSubmit, onSubmit, onCancel }: Props) {
+export function JobForm({ timeZone, initial, copyPhotos, submitLabel, submitIcon, beforeSubmit, onSubmit, onCancel }: Props) {
   const [photos, setPhotos] = useState<PhotoItem[]>(() =>
-    (initial?.photoPaths ?? []).map((path) => ({ kind: 'existing', key: path, path })),
+    (initial?.photoPaths ?? []).map((path) => ({ kind: copyPhotos ? 'copy' : 'existing', key: path, path })),
   );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -155,7 +157,7 @@ export function JobForm({ timeZone, initial, submitLabel, submitIcon, beforeSubm
           }}
           onTimeChange={(value) => form.setFieldValue('time', value)}
         />
-        {initial && !initialStillValid && (
+        {initial?.desiredAt && !initialStillValid && (
           <Text size="sm" c="orange.9">
             La fecha anterior ya pasó: elegí una nueva.
           </Text>

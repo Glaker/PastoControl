@@ -70,6 +70,88 @@ export type Database = {
           },
         ]
       }
+      job_agreements: {
+        Row: {
+          agreed_at: string
+          application_id: string
+          assigned_at: string
+          cancelled_by: string | null
+          client_id: string
+          cutter_id: string
+          done_at: string | null
+          done_by: string | null
+          job_id: string
+          price_ars: number
+        }
+        Insert: {
+          agreed_at: string
+          application_id: string
+          assigned_at?: string
+          cancelled_by?: string | null
+          client_id: string
+          cutter_id: string
+          done_at?: string | null
+          done_by?: string | null
+          job_id: string
+          price_ars: number
+        }
+        Update: {
+          agreed_at?: string
+          application_id?: string
+          assigned_at?: string
+          cancelled_by?: string | null
+          client_id?: string
+          cutter_id?: string
+          done_at?: string | null
+          done_by?: string | null
+          job_id?: string
+          price_ars?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_agreements_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_agreements_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_agreements_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_agreements_cutter_id_fkey"
+            columns: ["cutter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_agreements_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_agreements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_private: {
         Row: {
           address: string
@@ -98,11 +180,6 @@ export type Database = {
       }
       jobs: {
         Row: {
-          agreed_at: string | null
-          agreed_price_ars: number | null
-          assigned_application_id: string | null
-          assigned_at: string | null
-          assigned_cutter_id: string | null
           cancelled_at: string | null
           cancelled_by: string | null
           client_id: string
@@ -120,11 +197,6 @@ export type Database = {
           is_expired: boolean | null
         }
         Insert: {
-          agreed_at?: string | null
-          agreed_price_ars?: number | null
-          assigned_application_id?: string | null
-          assigned_at?: string | null
-          assigned_cutter_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           client_id: string
@@ -141,11 +213,6 @@ export type Database = {
           zone: string
         }
         Update: {
-          agreed_at?: string | null
-          agreed_price_ars?: number | null
-          assigned_application_id?: string | null
-          assigned_at?: string | null
-          assigned_cutter_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           client_id?: string
@@ -162,20 +229,6 @@ export type Database = {
           zone?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "jobs_assigned_application_id_fkey"
-            columns: ["assigned_application_id"]
-            isOneToOne: false
-            referencedRelation: "applications"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "jobs_assigned_cutter_id_fkey"
-            columns: ["assigned_cutter_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "jobs_cancelled_by_fkey"
             columns: ["cancelled_by"]
@@ -291,6 +344,52 @@ export type Database = {
           {
             foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ratings: {
+        Row: {
+          created_at: string
+          job_id: string
+          ratee_id: string
+          rater_id: string
+          would_work_again: boolean
+        }
+        Insert: {
+          created_at?: string
+          job_id: string
+          ratee_id: string
+          rater_id: string
+          would_work_again: boolean
+        }
+        Update: {
+          created_at?: string
+          job_id?: string
+          ratee_id?: string
+          rater_id?: string
+          would_work_again?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_ratee_id_fkey"
+            columns: ["ratee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_rater_id_fkey"
+            columns: ["rater_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -430,13 +529,27 @@ export type Database = {
           phone_e164: string
         }[]
       }
+      get_profile_stats: {
+        Args: { p_user_id: string }
+        Returns: {
+          done_as_client: number
+          done_as_cutter: number
+          yes_pct: number
+        }[]
+      }
+      has_rated_job: { Args: { p_job_id: string }; Returns: boolean }
       is_expired: {
         Args: { "": Database["public"]["Tables"]["jobs"]["Row"] }
         Returns: {
           error: true
         } & "the function public.is_expired with parameter or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache"
       }
+      mark_job_done: { Args: { p_job_id: string }; Returns: undefined }
       mark_notifications_read: { Args: { p_ids?: string[] }; Returns: number }
+      rate_job: {
+        Args: { p_job_id: string; p_would_work_again: boolean }
+        Returns: undefined
+      }
       update_application: {
         Args: {
           p_application_id: string

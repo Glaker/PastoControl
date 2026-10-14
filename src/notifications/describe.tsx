@@ -1,4 +1,4 @@
-import { IconArrowBackUp, IconBan, IconBell, IconConfetti, IconPencil, IconUserPlus, IconUserX, type Icon } from '@tabler/icons-react';
+import { IconArrowBackUp, IconBan, IconBell, IconCircleCheck, IconConfetti, IconPencil, IconUserPlus, IconUserX, type Icon } from '@tabler/icons-react';
 import { formatDateTime, formatPrice } from '../lib/format';
 import type { AppNotification } from './queries';
 
@@ -99,6 +99,15 @@ export function describeNotification(
         title: 'Trabajo cancelado',
         body: `${actor} canceló el trabajo en ${zone}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Si querés, publicalo de nuevo.`,
         to: n.job_id ? `/pedir/pedido/${n.job_id}` : null,
+      };
+    case 'trabajo_realizado':
+      return {
+        icon: IconCircleCheck,
+        color: 'teal',
+        title: 'Trabajo realizado',
+        body: `${actor} marcó como realizado el trabajo en ${zone}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Contanos si volverías a trabajar con esa persona.`,
+        // Le llega a cualquiera de las dos partes: /trabajo/:id lleva a la pantalla que corresponde.
+        to: n.job_id ? `/trabajo/${n.job_id}` : null,
       };
     default:
       return { icon: IconBell, color: 'gray', title: 'Aviso', body: '', to: null };

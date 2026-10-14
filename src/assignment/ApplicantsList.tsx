@@ -1,8 +1,9 @@
 import { Alert, Avatar, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertTriangle, IconRefresh, IconUserCheck, IconUsers } from '@tabler/icons-react';
+import { IconAlertTriangle, IconRefresh, IconScissors, IconUserCheck, IconUserCircle, IconUsers } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { ApplicationStatusBadge, ProposalSummary } from '../applications/ApplicationParts';
 import { confirmAction } from '../lib/confirm';
 import dayjs from '../lib/dayjs';
@@ -163,9 +164,24 @@ function ApplicantCard({
           {a.status !== 'pendiente' && <ApplicationStatusBadge status={a.status} />}
         </Group>
         <ProposalSummary job={job} application={a} />
-        <Text size="sm" c="dimmed">
-          Calificaciones y trabajos realizados: se suman en la Fase 5.
-        </Text>
+        <Group gap={6} wrap="nowrap" align="flex-start">
+          <IconScissors size={18} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+          <Text size="sm">
+            {a.done_jobs === 1 ? '1 trabajo realizado' : `${a.done_jobs ?? 0} trabajos realizados`}
+            {' · '}
+            {a.yes_pct !== null
+              ? `${a.yes_pct} % volvería a trabajar con ${a.first_name}`
+              : 'todavía sin suficientes calificaciones'}
+          </Text>
+        </Group>
+        <Button
+          component={Link}
+          to={`/persona/${a.cutter_id}`}
+          variant="default"
+          leftSection={<IconUserCircle size={20} aria-hidden />}
+        >
+          Ver el perfil de {a.first_name}
+        </Button>
         {onChoose && a.status === 'pendiente' && (
           <>
             <Button
