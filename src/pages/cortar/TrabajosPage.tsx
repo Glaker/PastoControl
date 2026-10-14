@@ -8,7 +8,7 @@ import { useMyProfile } from '../../profile/queries';
 
 export function TrabajosPage() {
   const { data: profile } = useMyProfile();
-  const { data: jobs, isPending, error, refetch, isRefetching } = useAvailableJobs();
+  const { data: jobs, isPending, error, refetch, isRefetching } = useAvailableJobs(profile?.locality_id);
   // Una sola llamada para las miniaturas de toda la lista (la primera foto de cada trabajo).
   const firstPhotos = (jobs ?? []).flatMap((j) => j.photo_paths.slice(0, 1));
   const { data: thumbs } = useJobPhotoUrls(firstPhotos);

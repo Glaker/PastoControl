@@ -16,6 +16,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      applications: {
+        Row: {
+          attempt: number
+          created_at: string
+          cutter_id: string
+          edits: number
+          id: string
+          job_id: string
+          proposed_at: string | null
+          proposed_price_ars: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          created_at?: string
+          cutter_id: string
+          edits?: number
+          id?: string
+          job_id: string
+          proposed_at?: string | null
+          proposed_price_ars?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          created_at?: string
+          cutter_id?: string
+          edits?: number
+          id?: string
+          job_id?: string
+          proposed_at?: string | null
+          proposed_price_ars?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_cutter_id_fkey"
+            columns: ["cutter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_private: {
         Row: {
           address: string
@@ -156,6 +210,64 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          application_id: string | null
+          created_at: string
+          dedupe_key: string
+          id: string
+          job_id: string | null
+          kind: string
+          payload: Json
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          application_id?: string | null
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          job_id?: string | null
+          kind: string
+          payload?: Json
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          application_id?: string | null
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          job_id?: string | null
+          kind?: string
+          payload?: Json
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_private: {
         Row: {
           last_name: string
@@ -234,6 +346,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_to_job: {
+        Args: {
+          p_job_id: string
+          p_proposed_at?: string
+          p_proposed_price_ars?: number
+        }
+        Returns: string
+      }
       cancel_job: { Args: { p_job_id: string }; Returns: undefined }
       create_job: {
         Args: {
@@ -253,6 +373,15 @@ export type Database = {
         Returns: {
           error: true
         } & "the function public.is_expired with parameter or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache"
+      }
+      mark_notifications_read: { Args: { p_ids?: string[] }; Returns: number }
+      update_application: {
+        Args: {
+          p_application_id: string
+          p_proposed_at?: string
+          p_proposed_price_ars?: number
+        }
+        Returns: undefined
       }
       update_job: {
         Args: {
@@ -276,6 +405,10 @@ export type Database = {
           p_locality_id: number
           p_phone_e164: string
         }
+        Returns: undefined
+      }
+      withdraw_application: {
+        Args: { p_application_id: string }
         Returns: undefined
       }
     }

@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react
 import { IconClipboardList, IconScissors } from '@tabler/icons-react';
 import { MODES, modeFromPath, type Mode, type NavItem } from '../app/modes';
 import { useCurrentMode } from '../app/useCurrentMode';
+import { useNotificationsLive, useUnreadCount } from '../notifications/queries';
 import classes from './AppLayout.module.css';
 
 const BAR_HEIGHT = 56;
@@ -16,8 +17,9 @@ export function AppLayout() {
   const { mode, modes } = useCurrentMode();
   const config = MODES[mode];
   const showSwitcher = modes.length > 1;
-  // Todavía no hay notificaciones: en la Fase 3 sale de la tabla notifications.
-  const unread = 0;
+  // Contador de avisos sin leer: Realtime + al volver la app al frente.
+  useNotificationsLive();
+  const unread = useUnreadCount().data ?? 0;
 
   // Una ruta de un modo que el usuario no tiene (ej.: /cortar sin perfil de cortador).
   const pathMode = modeFromPath(pathname);

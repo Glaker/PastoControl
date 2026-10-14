@@ -1,24 +1,37 @@
-import { Alert, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
-import { IconClipboardList, IconLock, IconSend } from '@tabler/icons-react';
+import { Alert, Button, Card, Stack, Text, Title } from '@mantine/core';
+import { IconBan, IconClipboardList, IconLock } from '@tabler/icons-react';
 import { Link, useParams } from 'react-router';
+import { ApplicationPanel } from '../../applications/ApplicationPanel';
+import { useMyApplicationForJob } from '../../applications/queries';
 import { useUserId } from '../../auth/AuthProvider';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { ClientLine } from '../../jobs/JobCard';
 import { JobFacts } from '../../jobs/JobFacts';
 import { BackLink, JobUnavailable, LoadFailed } from '../../jobs/JobPageParts';
 import { JobPhotos } from '../../jobs/JobPhotos';
-import { jobDisplayStatus, useJob } from '../../jobs/queries';
+import { useJob } from '../../jobs/queries';
 
 export function TrabajoDetallePage() {
   const { jobId } = useParams();
   const userId = useUserId();
   const { data: job, isPending, error, refetch } = useJob(jobId);
+  const application = useMyApplicationForJob(jobId);
 
-  if (isPending) return <FullPageLoader label="Cargando el trabajo…" />;
-  if (error) return <LoadFailed error={error} onRetry={() => void refetch()} />;
+  if (isPending || application.isPending) return <FullPageLoader label="Cargando el trabajo…" />;
+  if (error || application.error) {
+    return (
+      <LoadFailed
+        error={error ?? application.error}
+        onRetry={() => {
+          void refetch();
+          void application.refetch();
+        }}
+      />
+    );
+  }
 
-  // El RLS no devuelve trabajos vencidos, cancelados ni de otra localidad.
-  if (!job || (job.client_id !== userId && jobDisplayStatus(job) !== 'publicado')) {
+  // El RLS devuelve el trabajo solo si está disponible en mi localidad o si me postulé.
+  if (!job) {
     return (
       <JobUnavailable
         title="Este trabajo ya no está disponible"
@@ -44,13 +57,24 @@ export function TrabajoDetallePage() {
     );
   }
 
+  const fromApplications = !!application.data;
+
   return (
     <Stack gap="lg">
-      <BackLink to="/cortar" label="Trabajos" />
+      <BackLink
+        to={fromApplications ? '/cortar/postulaciones' : '/cortar'}
+        label={fromApplications ? 'Mis postulaciones' : 'Trabajos'}
+      />
 
       <Title order={1} size="h2">
         Trabajo en {job.zone}
       </Title>
+
+      {job.status === 'cancelado' && (
+        <Alert color="gray" icon={<IconBan aria-hidden />} title="Pedido cancelado">
+          El cliente canceló este pedido.
+        </Alert>
+      )}
 
       <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
@@ -72,12 +96,7 @@ export function TrabajoDetallePage() {
         La dirección exacta y el WhatsApp se comparten cuando el cliente acepta tu postulación.
       </Alert>
 
-      <Card withBorder radius="md" padding="lg">
-        <Group gap="sm" wrap="nowrap" align="flex-start">
-          <IconSend size={24} aria-hidden style={{ flex: 'none' }} />
-          <Text c="dimmed">Postularte (aceptando o con otro precio u horario): se completa en la Fase 3.</Text>
-        </Group>
-      </Card>
+      <ApplicationPanel job={job} application={application.data ?? null} />
     </Stack>
   );
 }

@@ -1,10 +1,10 @@
-import { Avatar, Card, Group, Stack, Text } from '@mantine/core';
-import { IconCalendarEvent, IconChevronRight, IconMapPin, IconPhoto } from '@tabler/icons-react';
+import { Avatar, Badge, Card, Group, Stack, Text } from '@mantine/core';
+import { IconCalendarEvent, IconChevronRight, IconMapPin, IconPhoto, IconSend, IconUsers } from '@tabler/icons-react';
 import { Link } from 'react-router';
 import { formatDateTime, formatPrice } from '../lib/format';
 import { displayName, useAvatarUrl } from '../profile/queries';
 import { JobStatusBadge } from './JobStatusBadge';
-import { jobDisplayStatus, type Job } from './queries';
+import { jobDisplayStatus, pendingCount, type Job } from './queries';
 import classes from './jobs.module.css';
 
 type Props = {
@@ -20,8 +20,19 @@ export function JobCard({ job, to, variant, thumbUrl }: Props) {
   return (
     <Card component={Link} to={to} withBorder radius="md" padding="md" className={classes.card}>
       <Stack gap="xs">
-        {variant === 'owner' && <JobStatusBadge status={jobDisplayStatus(job)} />}
+        {variant === 'owner' && (
+          <Group gap="xs">
+            <JobStatusBadge status={jobDisplayStatus(job)} />
+            <PendingBadge count={job.status === 'publicado' ? pendingCount(job) : 0} />
+          </Group>
+        )}
         {variant === 'cutter' && <ClientLine client={job.client} />}
+        {/* Con la sesión de un cortador, el RLS solo trae su propia postulación. */}
+        {variant === 'cutter' && job.applications.some((a) => a.status === 'pendiente') && (
+          <Badge size="lg" variant="light" color="pasto" leftSection={<IconSend size={16} aria-hidden />}>
+            Te postulaste
+          </Badge>
+        )}
 
         <Group align="flex-start" wrap="nowrap" gap="sm">
           <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
@@ -62,6 +73,15 @@ export function JobCard({ job, to, variant, thumbUrl }: Props) {
         </Group>
       </Stack>
     </Card>
+  );
+}
+
+function PendingBadge({ count }: { count: number }) {
+  if (!count) return null;
+  return (
+    <Badge size="lg" variant="filled" color="blue" leftSection={<IconUsers size={16} aria-hidden />}>
+      {count === 1 ? '1 postulación' : `${count} postulaciones`}
+    </Badge>
   );
 }
 

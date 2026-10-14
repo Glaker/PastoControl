@@ -9,9 +9,11 @@ export type JobDisplayStatus = JobStatus | 'vencido';
 
 // Nunca incluye job_private: la dirección se pide aparte y solo la recibe el dueño (RLS).
 // Hay dos FK a profiles (client_id y cancelled_by): el embed nombra la del cliente.
-const JOB_SELECT =
+// applications: por RLS, el dueño recibe las de su pedido y un cortador solo la suya.
+export const JOB_SELECT =
   'id, client_id, locality_id, zone, price_ars, desired_at, notes, photo_paths, status, republished_from, cancelled_at, created_at, updated_at, is_expired, ' +
-  'locality:localities(name, timezone), client:profiles!jobs_client_id_fkey(id, first_name, last_initial, avatar_path)';
+  'locality:localities(name, timezone), client:profiles!jobs_client_id_fkey(id, first_name, last_initial, avatar_path), ' +
+  'applications(id, status, cutter_id)';
 
 export type Job = {
   id: string;
@@ -30,7 +32,10 @@ export type Job = {
   is_expired: boolean | null;
   locality: { name: string; timezone: string };
   client: { id: string; first_name: string; last_initial: string; avatar_path: string | null };
+  applications: { id: string; status: ApplicationStatus; cutter_id: string }[];
 };
+
+export type ApplicationStatus = 'pendiente' | 'aceptada' | 'rechazada' | 'retirada' | 'cancelada';
 
 export const jobKeys = {
   all: ['jobs'] as const,
@@ -40,7 +45,7 @@ export const jobKeys = {
   address: (jobId: string) => ['jobs', 'address', jobId] as const,
 };
 
-function toJob(row: unknown): Job {
+export function toJob(row: unknown): Job {
   const job = row as Job;
   if (!job.locality || !job.client) throw new Error('Pedido incompleto');
   return job;
@@ -64,25 +69,27 @@ export function useMyJobs() {
   });
 }
 
-/**
- * Trabajos que puede tomar el cortador logueado. El RLS ya deja solo los publicados, no vencidos
- * y de su localidad; acá se sacan los propios (con los dos roles, el dueño también ve los suyos).
- */
-export function useAvailableJobs() {
+/** Trabajos que puede tomar el cortador logueado (sin los propios: con los dos roles también los ve). */
+export function useAvailableJobs(localityId: number | undefined) {
   const userId = useUserId();
   return useQuery({
-    queryKey: jobKeys.available(userId),
+    queryKey: [...jobKeys.available(userId), localityId],
     queryFn: async () => {
+      // El RLS también devuelve los trabajos en los que me postulé (en cualquier estado): la lista
+      // filtra publicados, no vencidos (reloj del servidor) y de mi localidad.
       const { data, error } = await supabase
         .from('jobs')
         .select(JOB_SELECT)
         .eq('status', 'publicado')
+        .eq('is_expired', false)
+        .eq('locality_id', localityId!)
         .neq('client_id', userId)
         .order('desired_at', { ascending: true })
         .limit(200);
       if (error) throw error;
       return data.map(toJob);
     },
+    enabled: localityId !== undefined,
   });
 }
 
@@ -132,6 +139,11 @@ export function useJobPhotoUrls(paths: string[]) {
     staleTime: (SIGNED_URL_SECONDS - 10 * 60) * 1000,
     gcTime: (SIGNED_URL_SECONDS - 5 * 60) * 1000,
   });
+}
+
+/** Postulaciones pendientes de un pedido (para el dueño). */
+export function pendingCount(job: Pick<Job, 'applications'>) {
+  return job.applications.filter((a) => a.status === 'pendiente').length;
 }
 
 export function jobDisplayStatus(job: Pick<Job, 'status' | 'is_expired' | 'desired_at'>): JobDisplayStatus {

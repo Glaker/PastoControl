@@ -7,7 +7,7 @@ import { useUserId } from '../../auth/AuthProvider';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobForm } from '../../jobs/JobForm';
 import { JobUnavailable, LoadFailed } from '../../jobs/JobPageParts';
-import { jobKeys, useJob, useJobAddress } from '../../jobs/queries';
+import { jobKeys, pendingCount, useJob, useJobAddress } from '../../jobs/queries';
 import { updateJob, type JobInput } from '../../jobs/saveJob';
 
 export function EditarPedidoPage() {
@@ -46,6 +46,17 @@ export function EditarPedidoPage() {
       <JobUnavailable
         title="Este pedido ya no se puede editar"
         message="Solo se editan los pedidos publicados."
+        backTo={`/pedir/pedido/${job.id}`}
+        backLabel="Volver al pedido"
+      />
+    );
+  }
+
+  if (pendingCount(job) > 0) {
+    return (
+      <JobUnavailable
+        title="Este pedido ya tiene postulaciones"
+        message="Los cortadores se postularon a lo que publicaste, así que no se puede editar. Si necesitás cambiarlo, cancelalo y publicalo de nuevo."
         backTo={`/pedir/pedido/${job.id}`}
         backLabel="Volver al pedido"
       />

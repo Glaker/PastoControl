@@ -36,7 +36,10 @@ export const theme = createTheme({
       defaultProps: { size: 'lg' },
       styles: { label: { minHeight: 44, display: 'flex', alignItems: 'center' }, body: { alignItems: 'flex-start' } },
     },
-    Radio: { defaultProps: { size: 'lg' } },
+    Radio: {
+      defaultProps: { size: 'lg' },
+      styles: { label: { minHeight: 44, display: 'flex', alignItems: 'center' }, body: { alignItems: 'flex-start' } },
+    },
     Switch: { defaultProps: { size: 'lg' } },
     SegmentedControl: { defaultProps: { size: 'lg' } },
     // Los avisos se cierran solos: sin la cruz de solo ícono.

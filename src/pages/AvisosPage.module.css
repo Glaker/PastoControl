@@ -1,0 +1,16 @@
+.item {
+  color: inherit;
+  text-decoration: none;
+  display: block;
+}
+
+.item:focus-visible {
+  outline: 3px solid var(--mantine-color-pasto-8);
+  outline-offset: 2px;
+}
+
+/* Sin leer al abrir la bandeja: borde de color a la izquierda (además del texto "Nuevo"). */
+.itemNew {
+  border-left: 4px solid var(--mantine-color-blue-6);
+  background: var(--mantine-color-blue-0);
+}

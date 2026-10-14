@@ -10,7 +10,8 @@ import { JobFacts } from '../../jobs/JobFacts';
 import { BackLink, JobUnavailable, LoadFailed } from '../../jobs/JobPageParts';
 import { JobPhotos } from '../../jobs/JobPhotos';
 import { JobStatusBadge } from '../../jobs/JobStatusBadge';
-import { jobDisplayStatus, jobKeys, useJob, useJobAddress } from '../../jobs/queries';
+import { jobDisplayStatus, jobKeys, pendingCount, useJob, useJobAddress } from '../../jobs/queries';
+import { applicationKeys } from '../../applications/queries';
 import { cancelJob } from '../../jobs/saveJob';
 import { confirmAction } from '../../lib/confirm';
 import { friendlyError } from '../../lib/errors';
@@ -40,12 +41,18 @@ export function PedidoDetallePage() {
   }
 
   const status = jobDisplayStatus(job);
-  const editable = job.status === 'publicado';
+  const isPublished = job.status === 'publicado';
+  const pending = isPublished ? pendingCount(job) : 0;
+  // Con postulaciones pendientes no se edita (los cortadores se postularon a lo publicado).
+  const editable = isPublished && pending === 0;
 
   const onCancel = async () => {
     const ok = await confirmAction({
       title: '¿Cancelar este pedido?',
-      message: 'Los cortadores ya no lo van a ver. No se puede deshacer.',
+      message:
+        pending > 0
+          ? `Los cortadores ya no lo van a ver y ${pending === 1 ? 'la persona que se postuló recibe' : `las ${pending} personas que se postularon reciben`} un aviso. No se puede deshacer.`
+          : 'Los cortadores ya no lo van a ver. No se puede deshacer.',
       confirmLabel: 'Sí, cancelar pedido',
       cancelLabel: 'No, volver',
       danger: true,
@@ -56,7 +63,10 @@ export function PedidoDetallePage() {
     setCancelling(true);
     try {
       await cancelJob(job.id);
-      await queryClient.invalidateQueries({ queryKey: jobKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: jobKeys.all }),
+        queryClient.invalidateQueries({ queryKey: applicationKeys.all }),
+      ]);
       notifications.show({ color: 'gray', icon: <IconCheck size={18} />, message: 'Cancelaste el pedido.' });
     } catch (e) {
       setActionError(friendlyError(e, 'No pudimos cancelar el pedido. Probá de nuevo.'));
@@ -100,13 +110,33 @@ export function PedidoDetallePage() {
         </Stack>
       )}
 
-      {job.status === 'publicado' && (
+      {isPublished && (
         <Card withBorder radius="md" padding="lg">
           <Group gap="sm" wrap="nowrap" align="flex-start">
             <IconUsers size={24} aria-hidden style={{ flex: 'none' }} />
-            <Text c="dimmed">Los postulantes aparecen acá. Se completa en la Fase 3.</Text>
+            <Stack gap={4}>
+              <Text fw={700}>
+                {pending === 0
+                  ? 'Todavía nadie se postuló'
+                  : pending === 1
+                    ? '1 persona se postuló'
+                    : `${pending} personas se postularon`}
+              </Text>
+              <Text size="sm" c="dimmed">
+                {pending === 0
+                  ? 'Te avisamos en «Avisos» cuando alguien se postule.'
+                  : 'Ver quiénes son y elegir a uno: se completa en la Fase 4.'}
+              </Text>
+            </Stack>
           </Group>
         </Card>
+      )}
+
+      {isPublished && pending > 0 && (
+        <Text size="sm" c="dimmed">
+          Como ya hay postulaciones, el pedido no se puede editar. Si necesitás cambiarlo, cancelalo y
+          publicalo de nuevo.
+        </Text>
       )}
 
       {editable && (
@@ -126,7 +156,7 @@ export function PedidoDetallePage() {
         </Alert>
       )}
 
-      {editable && (
+      {isPublished && (
         <>
           <Divider mt="xl" label="Acciones importantes" labelPosition="left" />
           <Button

@@ -1,5 +1,4 @@
-import { Alert, Button, NumberInput, Select, SimpleGrid, Stack, Text, Textarea, TextInput } from '@mantine/core';
-import { DatePickerInput } from '@mantine/dates';
+import { Alert, Button, NumberInput, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { IconAlertTriangle, IconArrowLeft, IconShieldLock } from '@tabler/icons-react';
 import { useState, type ReactNode } from 'react';
@@ -8,16 +7,7 @@ import dayjs from '../lib/dayjs';
 import { friendlyError } from '../lib/errors';
 import { PhotoPicker } from './PhotoPicker';
 import type { JobInput, PhotoItem } from './saveJob';
-
-export const MIN_PRICE = 1000;
-export const MAX_PRICE = 5_000_000;
-const MAX_DAYS_AHEAD = 60;
-
-// Turnos cada media hora, de 6 a 21 h.
-const TIME_SLOTS = Array.from({ length: (21 - 6) * 2 + 1 }, (_, i) => {
-  const minutes = 6 * 60 + i * 30;
-  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-});
+import { DayTimeFields, MAX_PRICE, MIN_PRICE, splitInstant, toInstant, validatePrice, validateWhen } from './schedule';
 
 export type JobFormInitial = {
   zone: string;
@@ -57,17 +47,17 @@ export function JobForm({ timeZone, initial, submitLabel, submitIcon, beforeSubm
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const now = dayjs().tz(timeZone);
-  const initialWhen = initial?.desiredAt ? dayjs(initial.desiredAt).tz(timeZone) : null;
+  const initialWhen = initial?.desiredAt ? splitInstant(initial.desiredAt, timeZone) : null;
   // Un pedido vencido se edita para elegir una fecha nueva: no se precarga la vieja.
-  const initialStillValid = initialWhen?.isAfter(now) ?? false;
+  const initialStillValid = !!initial?.desiredAt && dayjs(initial.desiredAt).isAfter(now);
 
   const form = useForm<Values>({
     initialValues: {
       zone: initial?.zone ?? '',
       address: initial?.address ?? '',
       price: initial?.priceArs ?? '',
-      date: initialWhen && initialStillValid ? initialWhen.format('YYYY-MM-DD') : null,
-      time: initialWhen ? initialWhen.format('HH:mm') : null,
+      date: initialWhen && initialStillValid ? initialWhen.date : null,
+      time: initialWhen?.time ?? null,
       notes: initial?.notes ?? '',
     },
     validate: {
@@ -79,22 +69,9 @@ export function JobForm({ timeZone, initial, submitLabel, submitIcon, beforeSubm
         const len = v.trim().length;
         return len < 3 ? 'Escribí la dirección.' : len > 200 ? 'Hasta 200 letras.' : null;
       },
-      price: (v) => {
-        const n = typeof v === 'number' ? v : Number.NaN;
-        if (!Number.isFinite(n)) return 'Escribí cuánto pagás.';
-        if (n < MIN_PRICE) return 'El precio mínimo es $ 1.000.';
-        if (n > MAX_PRICE) return 'El precio máximo es $ 5.000.000.';
-        return null;
-      },
+      price: (v) => validatePrice(v, 'Escribí cuánto pagás.'),
       date: (v) => (v ? null : 'Elegí el día.'),
-      time: (v, values) => {
-        if (!v) return 'Elegí la hora.';
-        if (!values.date) return null;
-        const when = toInstant(values.date, v, timeZone);
-        if (!when.isAfter(dayjs())) return 'Esa hora ya pasó. Elegí una más tarde.';
-        if (when.isAfter(dayjs().add(MAX_DAYS_AHEAD, 'day'))) return `Hasta ${MAX_DAYS_AHEAD} días adelante.`;
-        return null;
-      },
+      time: (v, values) => validateWhen(values.date, v, timeZone),
       notes: (v) => (v.trim().length > 500 ? 'Hasta 500 letras.' : null),
     },
   });
@@ -103,17 +80,6 @@ export function JobForm({ timeZone, initial, submitLabel, submitIcon, beforeSubm
     photos.length !== (initial?.photoPaths.length ?? 0) ||
     photos.some((p, i) => p.kind === 'new' || p.path !== initial?.photoPaths[i]);
   useUnsavedChanges(form.isDirty() || photosChanged);
-
-  // Con el día de hoy elegido, los horarios que ya pasaron no se ofrecen.
-  const isToday = form.values.date === now.format('YYYY-MM-DD');
-  const timeOptions = TIME_SLOTS.map((slot) => ({
-    value: slot,
-    label: `${slot} h`,
-    disabled: isToday && !toInstant(form.values.date!, slot, timeZone).isAfter(now),
-  }));
-  if (form.values.time && !TIME_SLOTS.includes(form.values.time)) {
-    timeOptions.unshift({ value: form.values.time, label: `${form.values.time} h`, disabled: false });
-  }
 
   const handleSubmit = form.onSubmit(async (values) => {
     setSaveError(null);
@@ -177,31 +143,18 @@ export function JobForm({ timeZone, initial, submitLabel, submitIcon, beforeSubm
           {...form.getInputProps('price')}
         />
 
-        <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="lg">
-          <DatePickerInput
-            label="Día"
-            placeholder="Elegí el día"
-            withAsterisk
-            dropdownType="modal"
-            valueFormat="dddd D [de] MMMM"
-            minDate={now.format('YYYY-MM-DD')}
-            maxDate={now.add(MAX_DAYS_AHEAD, 'day').format('YYYY-MM-DD')}
-            {...form.getInputProps('date')}
-            onChange={(value) => {
-              form.setFieldValue('date', value);
-              if (form.values.time) form.validateField('time');
-            }}
-          />
-          <Select
-            label="Hora"
-            placeholder="Elegí la hora"
-            withAsterisk
-            allowDeselect={false}
-            data={timeOptions}
-            maxDropdownHeight={280}
-            {...form.getInputProps('time')}
-          />
-        </SimpleGrid>
+        <DayTimeFields
+          timeZone={timeZone}
+          date={form.values.date}
+          time={form.values.time}
+          dateError={form.errors.date}
+          timeError={form.errors.time}
+          onDateChange={(value) => {
+            form.setFieldValue('date', value);
+            if (form.values.time) form.validateField('time');
+          }}
+          onTimeChange={(value) => form.setFieldValue('time', value)}
+        />
         {initial && !initialStillValid && (
           <Text size="sm" c="orange.9">
             La fecha anterior ya pasó: elegí una nueva.
@@ -236,8 +189,4 @@ export function JobForm({ timeZone, initial, submitLabel, submitIcon, beforeSubm
       </Stack>
     </form>
   );
-}
-
-function toInstant(date: string, time: string, timeZone: string) {
-  return dayjs.tz(`${date} ${time}`, 'YYYY-MM-DD HH:mm', timeZone);
 }
