@@ -16,6 +16,113 @@ export type Database = {
   }
   public: {
     Tables: {
+      job_private: {
+        Row: {
+          address: string
+          job_id: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          job_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          job_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_private_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          client_id: string
+          created_at: string
+          desired_at: string
+          id: string
+          locality_id: number
+          notes: string | null
+          photo_paths: string[]
+          price_ars: number
+          republished_from: string | null
+          status: string
+          updated_at: string
+          zone: string
+          is_expired: boolean | null
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_id: string
+          created_at?: string
+          desired_at: string
+          id?: string
+          locality_id: number
+          notes?: string | null
+          photo_paths?: string[]
+          price_ars: number
+          republished_from?: string | null
+          status?: string
+          updated_at?: string
+          zone: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_id?: string
+          created_at?: string
+          desired_at?: string
+          id?: string
+          locality_id?: number
+          notes?: string | null
+          photo_paths?: string[]
+          price_ars?: number
+          republished_from?: string | null
+          status?: string
+          updated_at?: string
+          zone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_locality_id_fkey"
+            columns: ["locality_id"]
+            isOneToOne: false
+            referencedRelation: "localities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_republished_from_fkey"
+            columns: ["republished_from"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       localities: {
         Row: {
           created_at: string
@@ -127,6 +234,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_job: { Args: { p_job_id: string }; Returns: undefined }
+      create_job: {
+        Args: {
+          p_address: string
+          p_desired_at: string
+          p_id: string
+          p_notes?: string
+          p_photo_paths?: string[]
+          p_price_ars: number
+          p_republished_from?: string
+          p_zone: string
+        }
+        Returns: string
+      }
+      is_expired: {
+        Args: { "": Database["public"]["Tables"]["jobs"]["Row"] }
+        Returns: {
+          error: true
+        } & "the function public.is_expired with parameter or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache"
+      }
+      update_job: {
+        Args: {
+          p_address: string
+          p_desired_at: string
+          p_job_id: string
+          p_notes?: string
+          p_photo_paths?: string[]
+          p_price_ars: number
+          p_zone: string
+        }
+        Returns: undefined
+      }
       upsert_my_profile: {
         Args: {
           p_avatar_path?: string

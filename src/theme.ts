@@ -30,6 +30,7 @@ export const theme = createTheme({
     NumberInput: { defaultProps: { size: 'lg' } },
     Textarea: { defaultProps: { size: 'lg' } },
     Select: { defaultProps: { size: 'lg' } },
+    DatePickerInput: { defaultProps: { size: 'lg' } },
     // Toda la etiqueta es tocable y mide 44px de alto como mínimo.
     Checkbox: {
       defaultProps: { size: 'lg' },

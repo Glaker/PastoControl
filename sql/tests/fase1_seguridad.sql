@@ -51,7 +51,7 @@ begin
       (16, 'A', 'A no puede apuntar a una foto que no existe', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',%s::smallint,true,true,%L)', loc, a || '/no-existe.jpg'), 'err:No encontramos la foto'),
       (17, 'A', 'A agrega el rol de cortador con su foto', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',%s::smallint,true,true,%L)', loc, a || '/foto.jpg'), 'ok'),
       (18, 'B', 'B crea su perfil con los dos roles', format('select public.upsert_my_profile(''Beto'',''Benítez'',''+5492345222222'',%s::smallint,true,true,%L)', loc, b || '/yo.jpg'), 'ok'),
-      (19, 'B', 'B ve los perfiles públicos (A y B)', 'select * from public.profiles', 'count:2'),
+      (19, 'B', 'B ve los perfiles públicos (A y B)', format('select * from public.profiles where id in (%L, %L, %L)', a, b, c), 'count:2'),
       (20, 'B', 'El perfil público de A muestra solo la inicial del apellido', format('select 1 from public.profiles where id = %L and first_name = ''Ana'' and last_initial = ''Á''', a), 'count:1'),
       (21, 'B', 'B solo ve SUS datos privados', 'select * from public.profile_private', 'count:1'),
       (22, 'B', 'B no ve el teléfono ni el apellido de A', format('select * from public.profile_private where user_id = %L', a), 'count:0'),
@@ -64,7 +64,7 @@ begin
       (29, 'B', 'B no puede renombrar la foto de A', format('update storage.objects set name = %L where bucket_id = ''avatars'' and name = %L', b || '/robada.jpg', a || '/foto.jpg'), 'affected:0'),
       (30, 'B', 'B puede ver la foto de A (lectura para logueados)', format('select 1 from storage.objects where bucket_id = ''avatars'' and name = %L', a || '/foto.jpg'), 'count:1'),
       (31, 'C', 'C (sin perfil) no ve datos privados de nadie', 'select * from public.profile_private', 'count:0'),
-      (32, 'C', 'C ve los perfiles públicos', 'select * from public.profiles', 'count:2'),
+      (32, 'C', 'C ve los perfiles públicos', format('select * from public.profiles where id in (%L, %L, %L)', a, b, c), 'count:2'),
       (33, 'anon', 'anon no ve fotos de perfil', 'select * from storage.objects where bucket_id = ''avatars''', 'count:0'),
       (34, 'admin', 'Los datos de A siguen intactos', format('select 1 from public.profiles p join public.profile_private pp on pp.user_id = p.id where p.id = %L and p.first_name = ''Ana'' and pp.phone_e164 = ''+5492345111111'' and p.is_cutter', a), 'count:1'),
       (35, 'admin', 'profiles no tiene columnas de teléfono ni apellido', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''profiles'' and column_name in (''phone_e164'', ''last_name'')', 'count:0')

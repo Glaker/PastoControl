@@ -46,7 +46,10 @@ export const router = createBrowserRouter([
                 children: [
                   { path: 'pedir', lazy: () => import('../pages/pedir/MisPedidosPage').then((m) => ({ Component: m.MisPedidosPage })) },
                   { path: 'pedir/nuevo', lazy: () => import('../pages/pedir/NuevoPedidoPage').then((m) => ({ Component: m.NuevoPedidoPage })) },
+                  { path: 'pedir/pedido/:jobId', lazy: () => import('../pages/pedir/PedidoDetallePage').then((m) => ({ Component: m.PedidoDetallePage })) },
+                  { path: 'pedir/pedido/:jobId/editar', lazy: () => import('../pages/pedir/EditarPedidoPage').then((m) => ({ Component: m.EditarPedidoPage })) },
                   { path: 'cortar', lazy: () => import('../pages/cortar/TrabajosPage').then((m) => ({ Component: m.TrabajosPage })) },
+                  { path: 'cortar/trabajo/:jobId', lazy: () => import('../pages/cortar/TrabajoDetallePage').then((m) => ({ Component: m.TrabajoDetallePage })) },
                   { path: 'cortar/postulaciones', lazy: () => import('../pages/cortar/MisPostulacionesPage').then((m) => ({ Component: m.MisPostulacionesPage })) },
                   { path: 'avisos', lazy: () => import('../pages/AvisosPage').then((m) => ({ Component: m.AvisosPage })) },
                   { path: 'perfil', lazy: () => import('../pages/PerfilPage').then((m) => ({ Component: m.PerfilPage })) },
