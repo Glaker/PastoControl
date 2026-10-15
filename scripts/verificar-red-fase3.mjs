@@ -90,7 +90,7 @@ must(await profile(tercero, 'tercero', 'Tercero', true, false), 'perfil tercero'
 const jobId = randomUUID();
 const desiredAt = new Date(Date.now() + 2 * 86400e3).toISOString();
 must(await cliente.sb.rpc('create_job', {
-  p_id: jobId, p_zone: 'Barrio Fase Tres', p_address: ADDRESS, p_price_ars: 15000, p_desired_at: desiredAt,
+  p_id: jobId, p_location_lat: -35.43, p_location_lng: -60.17, p_address_street: ADDRESS, p_address_number: '1', p_zone: 'Barrio Fase Tres', p_price_ars: 15000, p_desired_at: desiredAt,
 }), 'create_job');
 
 // Realtime: el cliente escucha sus avisos; los demás intentan escuchar los del cliente y sin filtro.
@@ -124,7 +124,7 @@ const app2 = must(await cortador2.sb.from('applications').select('id').eq('job_i
 await sleep(3000);
 
 const JOB_SELECT =
-  'id, client_id, zone, price_ars, desired_at, status, is_expired, ' +
+  'id, client_id, zone, address_street, location_lat, location_lng, price_ars, desired_at, status, is_expired, ' +
   'client:profiles!jobs_client_id_fkey(id, first_name, last_initial, avatar_path), applications!applications_job_id_fkey(id, status, cutter_id)';
 
 /** foreignAppId: una postulación AJENA, para intentar retirarla o editarla. */
@@ -136,7 +136,6 @@ async function probe(who, sb, foreignAppId) {
   r.postulacionesEmbed = await sb.from('applications').select('*, job:jobs!applications_job_id_fkey(*), cutter:profiles(*)');
   r.avisos = await sb.from('notifications').select('*');
   r.avisosCliente = await sb.from('notifications').select('*').eq('user_id', cliente.uid);
-  r.direccion = await sb.from('job_private').select('*');
   r.privados = await sb.from('profile_private').select('*');
   r.retirarAjena = await sb.rpc('withdraw_application', { p_application_id: foreignAppId });
   r.editarAjena = await sb.rpc('update_application', { p_application_id: foreignAppId, p_proposed_price_ars: 1000 });
@@ -154,7 +153,6 @@ const propio = {
   detalle: await cliente.sb.from('jobs').select(JOB_SELECT).eq('id', jobId).maybeSingle(),
   avisos: await cliente.sb.from('notifications').select('*').eq('user_id', cliente.uid),
   noLeidos: await cliente.sb.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null),
-  direccion: await cliente.sb.from('job_private').select('address').eq('job_id', jobId).maybeSingle(),
 };
 
 // Cancelar: los dos cortadores reciben "pedido_cancelado" (cortador1 lo escucha por Realtime).
@@ -175,20 +173,23 @@ const leaks = (who, needles) =>
 const secretsOf = (role) => [PHONES[role], PHONES[role].slice(4), LAST_NAMES[role]];
 const others = (me) => Object.keys(PHONES).filter((r) => r !== me).flatMap(secretsOf);
 
+// Desde la Fase 7 la dirección es visible para los cortadores que ven el pedido; el tercero (sin rol de
+// cortador) no ve el pedido, así que tampoco la dirección.
 for (const who of ['cortador1', 'cortador2', 'tercero']) {
-  const found = leaks(who, [ADDRESS, ...others(who)]);
-  check(`${who}: ninguna respuesta ni evento tiene la dirección ni datos privados ajenos`, found.length === 0, found.join(', '));
+  const found = leaks(who, [...(who === 'tercero' ? [ADDRESS] : []), ...others(who)]);
+  check(`${who}: ninguna respuesta ni evento tiene teléfonos ni apellidos ajenos${who === 'tercero' ? ' (ni la dirección)' : ''}`, found.length === 0, found.join(', '));
 }
 const anonLeaks = leaks('anon', [ADDRESS, ...Object.keys(PHONES).flatMap(secretsOf)]);
 check('anon: ninguna respuesta tiene la dirección ni datos privados', anonLeaks.length === 0, anonLeaks.join(', '));
 const clientAvisos = propio.avisos.data ?? [];
-const avisoLeak = clientAvisos.filter((n) => [ADDRESS, ...others('cliente')].some((s) => JSON.stringify(n).includes(s)));
+const avisoLeak = clientAvisos.filter((n) => others('cliente').some((s) => JSON.stringify(n).includes(s)));
 check('Los avisos del cliente no tienen datos privados de los cortadores', avisoLeak.length === 0);
 
 const c1 = res.cortador1;
 check('Filtrar por is_expired (computed field) funciona en la API', !c1.disponibles.error, c1.disponibles.error?.message);
 const c1Job = c1.disponibles.data?.find((j) => j.id === jobId);
 check('Cortador1 ve el pedido en disponibles', !!c1Job);
+check('Cortador1 ve la dirección y el pin del pedido (dirección visible)', c1Job?.address_street === ADDRESS && c1Job?.location_lat != null);
 check('Cortador1 solo ve SU postulación en el embed del pedido', c1Job?.applications.length === 1 && c1Job.applications[0].cutter_id === cortador1.uid);
 check('Cortador1 ve solo su postulación', c1.postulaciones.data?.length === 1);
 check('Cortador1: el embed de profiles en postulaciones no trae datos privados', !JSON.stringify(c1.postulacionesEmbed.data ?? []).includes(LAST_NAMES.cortador2));
@@ -217,7 +218,7 @@ check('Cancelar avisa a los dos cortadores', despues.avisosC1.data?.length === 1
 check('Realtime: cortador1 recibió "pedido_cancelado" en vivo', events.cortador1.some((e) => e.new?.kind === 'pedido_cancelado'));
 check('Cortador1 sigue viendo el pedido cancelado (se había postulado)', despues.c1VeCancelado.data?.status === 'cancelado');
 check('El pedido cancelado ya no figura en disponibles', despues.disponiblesC1.data?.length === 0);
-check('El dueño sí ve su dirección', propio.direccion.data?.address === ADDRESS);
+check('El dueño ve su dirección', propio.detalle.data?.address_street === ADDRESS);
 check('Control: el detector encuentra la dirección en las respuestas del dueño', leaks('cliente', [ADDRESS]).length > 0);
 
 // Limpieza: avatares (el pedido ya está cancelado).

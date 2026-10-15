@@ -1,12 +1,12 @@
 import { Button, Card, Group, Stack, Text, Title } from '@mantine/core';
-import { IconChevronRight, IconListSearch, IconMapPin } from '@tabler/icons-react';
+import { IconChevronRight, IconHome, IconListSearch } from '@tabler/icons-react';
 import { Link } from 'react-router';
 import { ApplicationStatusBadge, ProposalSummary } from '../../applications/ApplicationParts';
 import { useMyApplications, type MyApplication } from '../../applications/queries';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobStatusBadge } from '../../jobs/JobStatusBadge';
 import { LoadFailed } from '../../jobs/JobPageParts';
-import { jobDisplayStatus } from '../../jobs/queries';
+import { jobAddress, jobDisplayStatus } from '../../jobs/queries';
 import classes from '../../jobs/jobs.module.css';
 
 export function MisPostulacionesPage() {
@@ -76,8 +76,8 @@ function ApplicationCard({ application }: { application: MyApplication }) {
             jobStatus !== 'asignado' && <JobStatusBadge status={jobStatus} />}
         </Group>
         <Group gap={6} wrap="nowrap" align="flex-start">
-          <IconMapPin size={20} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
-          <Text fw={700}>{job.zone}</Text>
+          <IconHome size={20} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+          <Text fw={700}>{jobAddress(job)}</Text>
         </Group>
         <ProposalSummary job={job} application={application} />
         <Group gap={2} c="pasto.8" justify="flex-end">

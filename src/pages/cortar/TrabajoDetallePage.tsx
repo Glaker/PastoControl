@@ -9,7 +9,7 @@ import { ClientLine } from '../../jobs/JobCard';
 import { JobFacts } from '../../jobs/JobFacts';
 import { BackLink, JobUnavailable, LoadFailed } from '../../jobs/JobPageParts';
 import { JobPhotos } from '../../jobs/JobPhotos';
-import { useJob } from '../../jobs/queries';
+import { jobAddress, useJob } from '../../jobs/queries';
 
 export function TrabajoDetallePage() {
   const { jobId } = useParams();
@@ -70,7 +70,7 @@ export function TrabajoDetallePage() {
       />
 
       <Title order={1} size="h2">
-        Trabajo en {job.zone}
+        Trabajo en {jobAddress(job)}
       </Title>
 
       {job.status === 'cancelado' && (
@@ -97,7 +97,11 @@ export function TrabajoDetallePage() {
               Ver el perfil de {job.client.first_name}
             </Button>
           )}
-          <JobFacts job={job} showAgreed={application.data?.status === 'aceptada'} />
+          <JobFacts
+            job={job}
+            showAgreed={application.data?.status === 'aceptada'}
+            showDirections={job.status === 'publicado' || application.data?.status === 'aceptada'}
+          />
         </Stack>
       </Card>
 
@@ -112,7 +116,7 @@ export function TrabajoDetallePage() {
 
       {!showsContact && (
         <Alert color="blue" icon={<IconLock aria-hidden />}>
-          La dirección exacta y el WhatsApp se comparten cuando el cliente acepta tu postulación.
+          El nombre completo y el WhatsApp del cliente se comparten cuando acepta tu postulación.
         </Alert>
       )}
 

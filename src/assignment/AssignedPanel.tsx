@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertTriangle, IconBan, IconBrandWhatsapp, IconCheck, IconHome, IconPhone, IconUser, IconUserCircle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconBan, IconBrandWhatsapp, IconCheck, IconPhone, IconUser, IconUserCircle } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -96,11 +96,6 @@ export function AssignedPanel({ job, viewer }: Props) {
                   {counterpartName}
                 </Text>
               </ContactRow>
-              {viewer === 'cortador' && (
-                <ContactRow icon={<IconHome size={22} aria-hidden />} label="Dirección">
-                  <Text size="lg">{contact.address}</Text>
-                </ContactRow>
-              )}
               <ContactRow icon={<IconPhone size={22} aria-hidden />} label="WhatsApp">
                 <Text size="lg">{formatPhone(contact.phone_e164)}</Text>
               </ContactRow>

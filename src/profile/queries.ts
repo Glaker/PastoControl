@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase';
 
 export type Locality = Tables<'localities'>;
 export type MyProfile = Tables<'profiles'> & {
-  private: Pick<Tables<'profile_private'>, 'last_name' | 'phone_e164'>;
+  /** Datos privados (solo los lee el dueño): apellido, WhatsApp y la ubicación base del cortador. */
+  private: Pick<Tables<'profile_private'>, 'last_name' | 'phone_e164' | 'base_lat' | 'base_lng'>;
   locality: Locality;
 };
 
@@ -18,7 +19,7 @@ async function fetchMyProfile(userId: string): Promise<MyProfile | null> {
       .select('id, locality_id, first_name, last_initial, avatar_path, is_client, is_cutter, created_at, updated_at, locality:localities(*)')
       .eq('id', userId)
       .maybeSingle(),
-    supabase.from('profile_private').select('last_name, phone_e164').eq('user_id', userId).maybeSingle(),
+    supabase.from('profile_private').select('last_name, phone_e164, base_lat, base_lng').eq('user_id', userId).maybeSingle(),
   ]);
   if (profile.error) throw profile.error;
   if (priv.error) throw priv.error;

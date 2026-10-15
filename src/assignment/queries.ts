@@ -24,7 +24,6 @@ export type JobContact = {
   first_name: string;
   last_name: string;
   phone_e164: string;
-  address: string;
   agreed_price_ars: number;
   agreed_at: string;
 };

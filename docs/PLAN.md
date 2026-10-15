@@ -15,6 +15,7 @@ Se actualiza al cerrar cada fase.
 | 5 | Acuerdo en tabla aparte, marcar realizado, calificaciones, estadísticas, perfil público, volver a publicar | ✅ terminada y commiteada |
 | 5b | Ajustes después de probar el deploy: un solo botón de perfil, WhatsApp neutro, «Sacar foto» / «Elegir de la galería» | ✅ terminada y commiteada |
 | 6 | Web Push: avisos al celular, «Activar avisos», instalar la app (Android e iPhone) | 🟡 implementada, esperando revisión y prueba en el celular |
+| 7 | Dirección visible, ubicación en el mapa y trabajos cercanos | 🟡 implementada; `0025` (destructivo) esperando aprobación |
 
 Deploy: https://pastocontrol.vercel.app (Vercel). El ciclo completo se probó en celular y PC.
 
@@ -25,8 +26,11 @@ es un dato del modelo (`localities`), nunca un valor fijo en el código.
 
 - **Cliente:** publica su terreno con precio, fecha y hora.
 - **Cortador:** se postula aceptando las condiciones o con contraoferta de precio y/o de horario.
-- El cliente acepta una postulación, se liberan la dirección y los WhatsApp, y al terminar se califican entre sí.
-- Gratis: sin pagos ni chat dentro de la app. Tampoco mapas, publicidad ni verificación de identidad.
+- Cada pedido lleva su ubicación marcada en el mapa y la dirección escrita, que ven los cortadores (Fase 7).
+  Los cortadores ordenan los trabajos por distancia y ven un mapa con los disponibles.
+- El cliente acepta una postulación, se liberan el nombre completo y los WhatsApp, y al terminar se califican entre sí.
+- Gratis: sin pagos ni chat dentro de la app. Tampoco publicidad ni verificación de identidad. Mapa con
+  Leaflet y OpenStreetMap: sin Google Maps, sin geocodificación ni API de rutas.
 
 Stack: React 19, TypeScript, Vite, Mantine 8, React Router, TanStack Query, supabase-js,
 vite-plugin-pwa con service worker propio (`src/sw.ts`), deploy en Vercel. Base: Supabase,
@@ -52,8 +56,8 @@ operada con el MCP (limitado a este proyecto).
   `delete from public.localities where false`.)
 - **Lecturas:** por RLS (`grant select` + política). Los datos privados viven en tablas aparte que
   solo lee el dueño, para que ni un `select *` ni un embed los filtren:
-  - `profile_private`: apellido y teléfono;
-  - `job_private`: dirección.
+  - `profile_private`: apellido, teléfono y ubicación base del cortador (Fase 7).
+  - (`job_private`, con la dirección, existió hasta la Fase 7: la dirección pasó a `jobs` y es visible.)
 - Permisos por defecto de `anon` y `authenticated` revocados en `public` (0001). `anon` no lee nada.
 - Schema `private` (no expuesto por la API) para funciones auxiliares; `authenticated` tiene `usage`
   porque las políticas las usan, y cada función concede `execute` explícitamente.
@@ -71,6 +75,11 @@ operada con el MCP (limitado a este proyecto).
 ### Datos personales
 - Nombre visible: nombre + inicial del apellido («Ana Á.») hasta la aceptación. Nombre completo y
   WhatsApp, solo después (`get_job_contact`, Fase 4).
+- **Dirección y ubicación del pedido: visibles** (decisión del dueño, Fase 7: en un pueblo todos saben
+  dónde vive cada uno). Las ve cualquier usuario logueado que pueda ver el pedido según el RLS de `jobs`
+  (el dueño, los cortadores de la localidad mientras está publicado y los que se postularon). Anon, nada.
+  Reemplaza la decisión de las fases 2–6 (dirección privada en `job_private`, liberada al aceptar).
+- **Ubicación base del cortador («mi casa»): privada**, en `profile_private`; solo la lee el dueño.
 - Teléfono con libphonenumber-js, guardado como `+549…`; si falta la característica se completa con
   la de la localidad (`src/lib/phone.ts`).
 
@@ -85,8 +94,15 @@ operada con el MCP (limitado a este proyecto).
 - Precio y fecha con `src/lib/format.ts`, en la zona horaria de la localidad.
 - Modo según la URL (`/pedir/...` o `/cortar/...`). Con los dos roles hay un selector arriba y un color
   por modo (azul = pedir, verde = cortar).
-- Interfaz: áreas táctiles de 44–48 px como mínimo; siempre ícono con texto; sin truncar precio,
-  fecha, hora ni zona; sin scroll horizontal a 360 px; textos en español rioplatense.
+- Interfaz: áreas táctiles de 44–48 px como mínimo; siempre ícono con texto; sin truncar dirección,
+  precio, fecha, hora, distancia ni zona; sin scroll horizontal a 360 px; textos en español rioplatense.
+- Mapas (Fase 7): Leaflet + tiles de OpenStreetMap con su atribución. Todo Leaflet vive en
+  `src/map/LeafletMaps.tsx` (chunk aparte, cargado con `lazy` desde `src/map/lazy.tsx`); el resto
+  (`src/lib/geo.ts`: haversine, formato de distancia, GPS, link de «Cómo llegar») no importa Leaflet.
+  En pantallas táctiles el mapa no se arrastra con un dedo (la página sigue scrolleando): el pin se pone
+  tocando y se arrastra con un dedo, el mapa se mueve y se acerca con dos. La rueda del mouse no hace zoom.
+- Distancias en el front con haversine (en línea recta). «Cómo llegar»: link universal de Google Maps
+  (`/maps/dir/?api=1&destination=lat,lng`), sin API de rutas.
 
 ### Proceso
 - Nunca commitear, mergear ni pushear (lo hace el dueño).
@@ -124,8 +140,8 @@ operada con el MCP (limitado a este proyecto).
   postulación (falla si cambió desde que el cliente la vio). Rechaza las demás pendientes y notifica,
   todo en una transacción. Red de seguridad: índice único parcial `(job_id) where status = 'aceptada'`.
   Las RPCs de postulación usan `FOR SHARE` sobre el trabajo.
-- **Contacto:** `get_job_contact` devuelve dirección, nombre completo y WhatsApp de la contraparte,
-  solo a las dos partes y solo con el trabajo asignado o realizado.
+- **Contacto:** `get_job_contact` devuelve nombre completo y WhatsApp de la contraparte, solo a las dos
+  partes y solo con el trabajo asignado o realizado. (Hasta la Fase 7 devolvía también la dirección.)
 - **Acuerdo** (Fase 5): precio y horario acordados, quién es el elegido y quién canceló un asignado
   viven en `job_agreements`, que solo leen las dos partes (también en la API). Los cortadores no
   elegidos ven el pedido como asignado/realizado/cancelado, pero no el acuerdo ni quién fue elegido.
@@ -139,8 +155,13 @@ operada con el MCP (limitado a este proyecto).
   única por destinatario y `on conflict do nothing`. El payload nunca lleva datos privados. Bandeja en
   `/avisos`, contador de no leídas por Realtime que también se refresca al volver al frente. Web Push
   (Fase 6): cada aviso insertado sale también como notificación a los dispositivos del destinatario.
-- **Zona:** texto libre por ahora.
-- Al publicar, un aviso pide «no pongas la dirección en la nota ni en las fotos».
+- **Zona:** texto libre y opcional (Fase 7; antes era obligatoria). Va al final del formulario.
+- **Ubicación (Fase 7):** el pin es el dato principal y es obligatorio; la dirección escrita (calle y
+  número obligatorios, «entre calles» opcional) es para que la lea una persona. El pin tiene que caer
+  dentro del radio de la localidad (`localities.center_lat/center_lng/radius_m`; 25 de Mayo: centro del
+  límite en OSM y 10 km, que cubre todo el límite —hasta 9,4 km del centro— y las quintas).
+- (Hasta la Fase 6, al publicar un cartel pedía «no pongas la dirección en la nota ni en las fotos»; se
+  sacó con la dirección visible.)
 - **Mails:** «Confirm email» desactivado para la beta. SMTP propio pendiente (lo configura el dueño).
 
 ### Decisiones tomadas en la Fase 2 (además de lo pedido)
@@ -151,22 +172,29 @@ operada con el MCP (limitado a este proyecto).
   se leen con la misma regla (la política del bucket consulta `jobs` con el RLS del que llama), así que
   un cortador de otra localidad o un cliente sin rol de cortador no ve ni el trabajo ni sus fotos.
   En la Fase 3 se suma: el cortador que se postuló ve el trabajo (y sus fotos) en cualquier estado.
-- Límites: precio entero entre $ 1.000 y $ 5.000.000; fecha entre ahora y 60 días; zona 2–80 letras;
-  dirección 3–200; nota hasta 500; hasta 5 fotos; hasta 5 pedidos publicados a la vez por cliente (anti-spam).
+- Límites: precio entero entre $ 1.000 y $ 5.000.000; fecha entre ahora y 60 días; zona 2–80 letras
+  (opcional desde la Fase 7); calle 2–120, número 1–10 («s/n» vale), entre calles 3–120 (Fase 7); nota
+  hasta 500; hasta 5 fotos; hasta 5 pedidos publicados a la vez por cliente (anti-spam).
 - `jobs.locality_id` se copia del perfil del cliente al publicar.
 
 ## Modelo de datos
 
 ### Existente
 - `localities` (0002): id, slug, name, province, timezone, phone_area_code, is_active. Lectura: logueados.
+  Fase 7 (0024): center_lat, center_lng, radius_m (validan los pines; el mapa arranca en el centro).
 - `profiles` (0003): id = auth.users.id, locality_id, first_name, last_initial, avatar_path, is_client,
   is_cutter. Lectura: logueados.
 - `profile_private` (0003): user_id, last_name, phone_e164. Lectura: solo el dueño.
+  Fase 7 (0024): base_lat, base_lng (ubicación base del cortador, opcional; se escribe con
+  `set_my_base_location` y se borra sola si cambia la localidad).
 - Bucket `avatars` (0004): privado, 2 MB, jpeg/png/webp. Lectura: logueados; escritura: carpeta propia.
 - `jobs` (0005): id, client_id → profiles, locality_id, zone, price_ars, desired_at, notes,
   photo_paths text[] (≤ 5, todas en `<client_id>/<id>/`), status
   (`publicado|asignado|realizado|cancelado`), republished_from → jobs, cancelled_at, cancelled_by,
   created_at, updated_at. Computed field `is_expired`.
+  Fase 7 (0024/0025): `zone` opcional; address_street (not null), address_number, address_between,
+  location_lat, location_lng (pin). address_number y el pin son null solo en los pedidos anteriores
+  (la dirección vieja se copió entera a address_street); las RPCs los exigen.
   Lectura: el dueño (todos los suyos), los cortadores de la localidad (publicados no vencidos) y los
   cortadores que se postularon (cualquier estado), en una sola política SELECT (0009, ampliada en 0010).
   `cancelled_by` solo guarda al cliente: si cancela el cortador elegido queda null (lo verían los
@@ -179,7 +207,7 @@ operada con el MCP (limitado a este proyecto).
   acuerdo por pedido) → jobs, application_id (único) → applications, client_id, cutter_id → profiles,
   price_ars, agreed_at, assigned_at, done_at, done_by, cancelled_by. Se crea en `accept_application` y
   queda como historial si se cancela. Lectura: solo `client_id` o `cutter_id`; sin escritura directa.
-- `job_private` (0005): job_id, address. Lectura: solo el dueño del trabajo.
+- ~~`job_private` (0005): job_id, address~~ — se borra en 0025 (la dirección pasó a `jobs`, Fase 7).
 - Bucket `job-photos` (0006): privado, 3 MB, jpeg/png/webp, `<uid>/<job_id>/...`. Lectura: el dueño
   (su carpeta) y quien puede ver el trabajo por RLS (solo las fotos listadas en `photo_paths`);
   escritura: carpeta propia.
@@ -214,14 +242,15 @@ operada con el MCP (limitado a este proyecto).
 | RPC | Fase | Qué hace |
 |-----|------|----------|
 | `upsert_my_profile` | 1 (+2, +3, +4) | Crea/actualiza el perfil propio. Fase 2: no deja sacar el rol de cliente con trabajos publicados o asignados. Fase 3: idem cortador con postulaciones activas. Fase 4: no deja cambiar de localidad con pedidos publicados/asignados ni postulaciones pendientes/aceptadas. |
-| `create_job` | 2 | Publica un trabajo (id generado por el front) con dirección en `job_private`. |
-| `update_job` | 2 (+3) | Edita un trabajo publicado propio (también vencido). Fase 3: falla si hay postulaciones pendientes. |
+| `create_job(p_id, p_location_lat, p_location_lng, p_address_street, p_address_number, p_price_ars, p_desired_at, p_address_between, p_zone, p_notes, p_photo_paths, p_republished_from)` | 2 (+7) | Publica un trabajo (id generado por el front). Fase 7: pin obligatorio dentro del radio de la localidad, calle y número en `jobs`, zona opcional. |
+| `update_job(p_job_id, p_location_lat, …)` | 2 (+3, +7) | Edita un trabajo publicado propio (también vencido). Fase 3: falla si hay postulaciones pendientes. Fase 7: mismas validaciones de ubicación que `create_job`. |
+| `set_my_base_location(p_lat, p_lng)` | 7 | Guarda la ubicación base del que llama (dentro del radio de su localidad) o la borra con los dos en null. |
 | `cancel_job` | 2 (+3, +4) | Publicado: solo el cliente; cancela las pendientes y avisa. Asignado (Fase 4): el cliente o el cortador aceptado; la aceptada pasa a cancelada y avisa a la otra parte. |
 | `apply_to_job`, `update_application`, `withdraw_application` | 3 | Postularse (reusa la fila si estaba retirada), editar, retirar. Bloqueos: perfil `FOR SHARE` → trabajo `FOR SHARE` → postulación `FOR UPDATE`. Avisan al cliente. Hasta 20 pendientes por cortador. |
 | `mark_notifications_read(p_ids default null)` | 3 | Marca avisos propios como leídos (los indicados o todos). Devuelve cuántos. |
 | `accept_application(p_application_id, p_expected_updated_at)` | 4 | Aceptación atómica: trabajo `FOR UPDATE`, versión de la postulación, acuerdo (propuesta o lo publicado; el horario tiene que ser futuro), rechaza las demás pendientes y avisa a todos. |
 | `get_job_applicants(p_job_id)` | 4 (+5) | Postulantes (sin retiradas) con nombre visible, foto y propuesta, solo para el dueño. Fase 5: `done_jobs` (realizados como cortador) y `yes_pct`. |
-| `get_job_contact(p_job_id)` | 4 (+5) | Nombre completo, WhatsApp y dirección de la contraparte + el acuerdo; solo las dos partes y solo con el trabajo asignado o realizado. Fase 5: lee `job_agreements`. |
+| `get_job_contact(p_job_id)` | 4 (+5, +7) | Nombre completo y WhatsApp de la contraparte + el acuerdo; solo las dos partes y solo con el trabajo asignado o realizado. Fase 5: lee `job_agreements`. Fase 7: sin la dirección (está en `jobs`). |
 | `mark_job_done(p_job_id)` | 5 | Cualquiera de las dos partes, con el trabajo asignado y desde el día acordado (hora local). Pasa a realizado y avisa a la otra parte. |
 | `rate_job(p_job_id, p_would_work_again)` | 5 | Una calificación por parte, con el trabajo realizado. No se puede cambiar. |
 | `has_rated_job(p_job_id)` | 5 | Si el que llama ya calificó (sin decir qué puso). |
@@ -488,6 +517,48 @@ Verificación (14/10/2026):
 - `tsc -b` y build sin errores. Advisors: 0029 en las 17 RPCs (por diseño), `push_subscriptions` y
   `ratings` con RLS sin políticas (a propósito), «leaked password protection», índice sin uso.
 
+### Fase 7 · Dirección visible, mapa y trabajos cercanos (implementada; falta aprobar y correr `0025`)
+Pedido del dueño después de probar el MVP en el pueblo: la dirección no necesita ser privada y los
+cortadores tienen que ver qué trabajos tienen más cerca.
+
+- [x] Dirección y pin en `jobs`, visibles con el RLS de siempre (0024). Teléfono y apellido sin cambios.
+- [x] Localidades con centro y radio; `private.check_location` rechaza pines fuera del radio con «La
+  ubicación marcada está fuera de <localidad>.» (también NaN, infinito y valores imposibles).
+- [x] Publicar / editar, en este orden: mapa (obligatorio, «Usar mi ubicación actual» + pin que se
+  arrastra o se pone tocando), calle y número, entre calles (opcional), … y la zona (opcional) al final.
+  Sin pin no se publica; si falta algo, la pantalla lleva al primer campo con error. Sin el cartel
+  «Cuidá tu privacidad».
+- [x] Ubicación base del cortador en el perfil («Desde dónde salís a cortar»), privada (`profile_private`).
+- [x] Trabajos disponibles: «Ordenar por distancia» con «Desde mi ubicación actual» / «Desde mi casa»,
+  «a 800 m» / «a 2,3 km» en cada tarjeta, vista Lista / Mapa (precio en cada pin; tocarlo muestra la
+  tarjeta, que lleva al detalle). Sin origen: por fecha, con un aviso para usar el GPS o cargar la casa.
+- [x] «Cómo llegar» en el detalle del trabajo (para el cortador, publicado o si lo eligieron).
+- [x] Volver a publicar copia pin y dirección (de los pedidos viejos, sin pin, copia la dirección y pide el pin).
+- [x] Avisos: llevan `address` (calle y número) y el texto la usa en lugar de la zona (también `send-push`).
+- [ ] `0025` (destructivo): borrar `job_private` y las firmas viejas. **Esperando aprobación del dueño.**
+
+Front: `src/lib/geo.ts`, `src/map/` (LeafletMaps, lazy, LocationField, useCurrentPosition, map.css),
+`src/profile/BaseLocationCard.tsx`; cambios en JobForm, JobCard, JobFacts, queries, saveJob, TrabajosPage,
+Nuevo/Editar/Detalle de pedido, TrabajoDetallePage, AssignedPanel, describe y `send-push`.
+
+Decisiones de la Fase 7:
+- Migración en dos pasos para que el front deployado siga andando hasta el deploy nuevo: 0024 agrega y
+  copia (RPCs nuevas al lado de las viejas); 0025 vuelve a copiar lo que haya cambiado y borra lo viejo.
+  Entre 0025 y el deploy del front nuevo, el front viejo no puede publicar ni editar.
+- La dirección de los pedidos viejos se copió entera a `address_street` (no se adivina el número) y
+  quedan sin pin: el detalle no muestra «Cómo llegar» y al volver a publicarlos se pide el pin.
+- Número de casa como texto (1–10): admite «s/n» y «1234 bis».
+- Radio de 25 de Mayo: 10 km desde el centro del límite de la localidad en OSM (el límite llega a 9,4 km).
+- Si el GPS da una ubicación fuera de la localidad, el pin no se mueve y se avisa; si es imprecisa
+  (más de 50 m), se pone el pin y se pide revisarlo.
+- Al abrir el formulario sin pin, el mapa arranca en el centro de la localidad; si el permiso de ubicación
+  ya estaba dado, se mueve a donde está la persona pero sin poner el pin (puede no estar en el terreno).
+- Trabajos disponibles: sin preferencia guardada, el origen es la casa si está cargada; si no, el GPS solo
+  si el permiso ya estaba dado (el permiso se pide recién al tocar «Desde mi ubicación actual»). Origen y
+  vista se recuerdan en el dispositivo (localStorage).
+- Cambiar de localidad borra la ubicación base (quedaría fuera del radio).
+- Los tiles de OSM no pasan por el service worker (solo se precachean los archivos de la app).
+
 ### Pendientes futuros (sin fase asignada)
 - Limpieza de fotos huérfanas en `job-photos`: archivos subidos cuyo `create_job` nunca se completó
   (se cerró la app, se cortó la red entre la subida y la RPC). Hoy el front borra lo subido si la RPC
@@ -498,15 +569,14 @@ Verificación (14/10/2026):
 - Recordatorio «¿Ya cortaron?»: el día después de la fecha acordada, si el trabajo sigue asignado (nadie
   lo marcó realizado), aviso a las dos partes para que lo marquen. Necesita un proceso programado
   (pg_cron o Edge Function con cron) que inserte el aviso con `private.notify` y una dedupe_key por trabajo.
-- Dirección: reemplazar la zona por calle, entre qué calles y número, más la selección de la ubicación
-  exacta en Google Maps. Se plantea aparte.
 - Mejorar la interfaz (hoy muy simple). Va al final, cuando el flujo esté cerrado.
 - Antes de abrir a usuarios reales: SMTP propio en Supabase, borrar la cuenta, política de privacidad y
   términos, y pasar el SQL de `sql/` a migraciones versionadas con la CLI.
 
 ## Verificación al cerrar cada fase
 - Pruebas SQL con varios usuarios (dueño, cortador, tercero y anon) sobre cada política y RPC nueva.
-- Revisar las respuestas de red como usuario sin permiso: la dirección y el teléfono ajenos no aparecen nunca.
+- Revisar las respuestas de red como usuario sin permiso: el teléfono, el apellido y la ubicación base
+  ajenos no aparecen nunca; la dirección, solo para quien ve el pedido.
 - `tsc -b` y el build sin errores. Sin scroll horizontal a 360 px.
 - Listar los SQL nuevos y lo ejecutado. Revisar los advisors de Supabase.
 - Actualizar este archivo.
@@ -544,6 +614,9 @@ Verificación (14/10/2026):
 | `sql/0022_web_push.sql` | 6 | pg_net, `push_subscriptions`, `save_push_subscription`, `delete_push_subscription`, `notifications.pushed_at`, trigger `notifications_queue_push`, URL en Vault |
 | `sql/0023_push_secreto.sql` | 6 | Trigger con el header `x-push-secret` (valor en Vault, no en el repo) |
 | `sql/tests/fase6_seguridad.sql` | 6 | 50 casos |
+| `sql/0024_ubicacion_y_direccion_visible.sql` | 7 | No destructivo: centro y radio de las localidades, `private.distance_m` / `check_location`, dirección y pin en `jobs` (copia de `job_private`), `zone` opcional, ubicación base en `profile_private`, `create_job` / `update_job` con firma nueva, `set_my_base_location`, `private.notify` con `address`, `upsert_my_profile` borra la ubicación base si cambia la localidad |
+| `sql/0025_borrar_job_private.sql` | 7 | **Destructivo, requiere aprobación:** vuelve a copiar la dirección, `address_street` not null, borra las firmas viejas de `create_job` / `update_job` / `check_job_input`, `get_job_contact` sin dirección y la tabla `job_private` |
+| `sql/tests/fase7_seguridad.sql` | 7 | 73 casos |
 | `sql/tests/limpiar_usuarios_prueba.sql` | 1 | Borra usuarios de pruebas de punta a punta |
 
 Scripts (revisan las respuestas de red con sesiones reales; crean usuarios `pastocontrol.prueba.*`
@@ -554,3 +627,10 @@ que después se borran con `sql/tests/limpiar_usuarios_prueba.sql`):
 - `node scripts/prueba-carrera-fase4.mjs [rondas]` (Fase 4: carreras con sesiones en paralelo).
 - `node scripts/verificar-red-fase5.mjs` (Fase 5: realizado, calificaciones y estadísticas; el
   trabajo se crea para dentro de 20 minutos, así que hay que correrlo antes de las 23:40 hora local).
+- `node scripts/verificar-red-fase7.mjs` (Fase 7: dirección visible, pin, ubicación base, radio).
+- `node scripts/preparar-prueba-mapa.mjs` (Fase 7: crea un cliente con 4 pedidos en distintos puntos y un
+  cortador con su casa, e imprime los mails y la contraseña para probar el mapa en el navegador).
+
+Desde la Fase 7 los scripts de las fases 2–5 publican con pin y ya no tratan la dirección como secreta
+para los cortadores que ven el pedido (sí para anon y para quien no lo ve); siguen controlando apellidos
+y WhatsApp. La dirección la controla en detalle `verificar-red-fase7.mjs`.

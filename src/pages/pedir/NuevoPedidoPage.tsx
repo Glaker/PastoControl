@@ -7,7 +7,7 @@ import { useUserId } from '../../auth/AuthProvider';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobForm } from '../../jobs/JobForm';
 import { LoadFailed } from '../../jobs/JobPageParts';
-import { jobKeys, useJob, useJobAddress } from '../../jobs/queries';
+import { jobAddress, jobKeys, jobPoint, useJob } from '../../jobs/queries';
 import { createJob, type JobInput } from '../../jobs/saveJob';
 import { confirmAction } from '../../lib/confirm';
 import { formatDateTimeLong, formatPrice } from '../../lib/format';
@@ -24,16 +24,11 @@ export function NuevoPedidoPage() {
   const source = useJob(fromId);
   const sourceOk = !!source.data && source.data.client_id === userId &&
     (source.data.status === 'cancelado' || source.data.status === 'realizado');
-  const sourceAddress = useJobAddress(fromId, sourceOk);
 
   // RequireProfile garantiza que el perfil existe.
   if (!profile) return <FullPageLoader />;
-  if (fromId && (source.isPending || (sourceOk && sourceAddress.isPending))) {
-    return <FullPageLoader label="Cargando el pedido anterior…" />;
-  }
-  if (fromId && (source.error || sourceAddress.error)) {
-    return <LoadFailed error={source.error ?? sourceAddress.error} onRetry={() => void source.refetch()} />;
-  }
+  if (fromId && source.isPending) return <FullPageLoader label="Cargando el pedido anterior…" />;
+  if (fromId && source.error) return <LoadFailed error={source.error} onRetry={() => void source.refetch()} />;
   const { locality } = profile;
   const from = sourceOk ? source.data! : null;
 
@@ -49,9 +44,12 @@ export function NuevoPedidoPage() {
             {formatPrice(input.priceArs)}
           </Text>
           <Text>{formatDateTimeLong(input.desiredAt, locality.timezone)}</Text>
-          <Text>{input.zone}</Text>
+          <Text>
+            {input.street} {input.number}
+            {input.between && `, ${input.between}`}
+          </Text>
           <Text size="sm" c="dimmed">
-            La dirección no se muestra: solo la ve la persona que elijas.
+            La dirección y la ubicación las ven los cortadores. Tu apellido y tu WhatsApp, solo la persona que elijas.
           </Text>
         </Stack>
       ),
@@ -71,7 +69,8 @@ export function NuevoPedidoPage() {
       </Title>
       {from && (
         <Alert color="blue" icon={<IconRepeat aria-hidden />}>
-          Copiamos los datos del pedido en {from.zone}. Revisalos y elegí un día y una hora nuevos.
+          Copiamos los datos del pedido de {jobAddress(from)}. Revisalos y elegí un día y una hora nuevos.
+          {!jobPoint(from) && ' Marcá también la ubicación en el mapa.'}
         </Alert>
       )}
       {fromId && !from && (
@@ -82,13 +81,16 @@ export function NuevoPedidoPage() {
       )}
       <JobForm
         key={from?.id ?? 'nuevo'}
-        timeZone={locality.timezone}
+        locality={locality}
         copyPhotos={!!from}
         initial={
           from
             ? {
-                zone: from.zone,
-                address: sourceAddress.data ?? '',
+                location: jobPoint(from),
+                street: from.address_street,
+                number: from.address_number ?? '',
+                between: from.address_between ?? '',
+                zone: from.zone ?? '',
                 priceArs: from.price_ars,
                 // Sin fecha: el pedido anterior ya pasó o se canceló; se elige una nueva.
                 desiredAt: null,

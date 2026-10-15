@@ -97,7 +97,7 @@ await sleep(1000);
 
 const jobId = randomUUID();
 must(await cliente.sb.rpc('create_job', {
-  p_id: jobId, p_zone: 'Barrio Fase Cuatro', p_address: ADDRESS, p_price_ars: 15000,
+  p_id: jobId, p_location_lat: -35.43, p_location_lng: -60.17, p_address_street: ADDRESS, p_address_number: '1', p_zone: 'Barrio Fase Cuatro', p_price_ars: 15000,
   p_desired_at: new Date(Date.now() + 2 * 86400e3).toISOString(),
 }), 'create_job');
 must(await elegido.sb.rpc('apply_to_job', { p_job_id: jobId, p_proposed_price_ars: 18000 }), 'apply elegido');
@@ -107,9 +107,8 @@ async function probe(sb) {
   return {
     contacto: await sb.rpc('get_job_contact', { p_job_id: jobId }),
     postulantes: await sb.rpc('get_job_applicants', { p_job_id: jobId }),
-    pedido: await sb.from('jobs').select('*, applications!applications_job_id_fkey(*), job_private(*), agreement:job_agreements!job_agreements_job_id_fkey(*)').eq('id', jobId).maybeSingle(),
+    pedido: await sb.from('jobs').select('*, applications!applications_job_id_fkey(*), agreement:job_agreements!job_agreements_job_id_fkey(*)').eq('id', jobId).maybeSingle(),
     acuerdos: await sb.from('job_agreements').select('*'),
-    direccion: await sb.from('job_private').select('*'),
     privados: await sb.from('profile_private').select('*'),
     perfilesConPrivados: await sb.from('profiles').select('*, profile_private(*)'),
     postulaciones: await sb.from('applications').select('*, cutter:profiles(*), job:jobs!applications_job_id_fkey(*)'),
@@ -142,21 +141,23 @@ const secrets = (role) => [PHONES[role], PHONES[role].slice(4), LAST_NAMES[role]
 const found = (who, needles, onlyPhase) =>
   log.filter((e) => e.who === who && (!onlyPhase || e.phase === onlyPhase) && needles.some((n) => e.body.includes(n))).map((e) => `${e.phase} ${e.kind}: ${e.what}`);
 
-// Quienes nunca deben ver nada ajeno
+// Quienes nunca deben ver nada ajeno. Desde la Fase 7 la dirección es visible para los cortadores que
+// ven el pedido (scripts/verificar-red-fase7.mjs la controla); acá, apellidos y WhatsApp.
 for (const who of ['noElegido', 'tercero']) {
-  const leaks = found(who, [ADDRESS, ...Object.keys(PHONES).filter((r) => r !== who).flatMap(secrets)]);
-  check(`${who}: nunca recibe dirección, apellidos ni WhatsApp ajenos (antes, asignado y cancelado)`, leaks.length === 0, leaks.join(', '));
+  const leaks = found(who, Object.keys(PHONES).filter((r) => r !== who).flatMap(secrets));
+  check(`${who}: nunca recibe apellidos ni WhatsApp ajenos (antes, asignado y cancelado)`, leaks.length === 0, leaks.join(', '));
 }
 const anonLeaks = found('anon', [ADDRESS, ...Object.keys(PHONES).flatMap(secrets)]);
 check('anon: nunca recibe ningún dato privado', anonLeaks.length === 0, anonLeaks.join(', '));
 
 // Contraparte: solo mientras está asignado
-const elegidoAntes = found('elegido', [ADDRESS, ...secrets('cliente')], 'antes');
-const elegidoDespues = found('elegido', [ADDRESS, ...secrets('cliente')], 'cancelado');
-check('Elegido: antes de asignar no recibe la dirección ni los datos del cliente', elegidoAntes.length === 0, elegidoAntes.join(', '));
-check('Elegido: asignado, recibe dirección, nombre completo y WhatsApp del cliente',
-  asignado.elegido.contacto.data?.[0]?.address === ADDRESS && asignado.elegido.contacto.data?.[0]?.phone_e164 === PHONES.cliente && asignado.elegido.contacto.data?.[0]?.last_name === LAST_NAMES.cliente);
-check('Elegido: cancelado, ya no recibe la dirección ni los datos del cliente', elegidoDespues.length === 0, elegidoDespues.join(', '));
+const elegidoAntes = found('elegido', secrets('cliente'), 'antes');
+const elegidoDespues = found('elegido', secrets('cliente'), 'cancelado');
+check('Elegido: antes de asignar no recibe el apellido ni el WhatsApp del cliente', elegidoAntes.length === 0, elegidoAntes.join(', '));
+check('Elegido: asignado, recibe nombre completo y WhatsApp del cliente (y ya no la dirección: está en el pedido)',
+  asignado.elegido.contacto.data?.[0]?.phone_e164 === PHONES.cliente && asignado.elegido.contacto.data?.[0]?.last_name === LAST_NAMES.cliente &&
+  !('address' in (asignado.elegido.contacto.data?.[0] ?? {})));
+check('Elegido: cancelado, ya no recibe los datos del cliente', elegidoDespues.length === 0, elegidoDespues.join(', '));
 check('Elegido: nunca recibe datos del no elegido ni del tercero', found('elegido', [...secrets('noElegido'), ...secrets('tercero')]).length === 0);
 
 const clienteAntes = found('cliente', secrets('elegido'), 'antes');
@@ -190,10 +191,10 @@ check('Realtime: el elegido recibió "postulacion_aceptada"', kinds('elegido').i
 check('Realtime: el no elegido recibió "postulacion_rechazada"', kinds('noElegido').includes('postulacion_rechazada'));
 check('Realtime: el cliente recibió "trabajo_cancelado_por_cortador"', kinds('cliente').includes('trabajo_cancelado_por_cortador'));
 check('Realtime: el tercero no recibió nada', events.tercero.length === 0);
-check('Los avisos no llevan datos privados', !Object.values(events).flat().some((n) => [ADDRESS, ...Object.keys(PHONES).flatMap(secrets)].some((s) => JSON.stringify(n).includes(s))));
+check('Los avisos no llevan datos privados', !Object.values(events).flat().some((n) => Object.keys(PHONES).flatMap(secrets).some((s) => JSON.stringify(n).includes(s))));
 
-// Control del detector: el elegido sí recibió la dirección mientras estaba asignado.
-check('Control: el detector encuentra la dirección en lo que recibió el elegido asignado', found('elegido', [ADDRESS], 'asignado').length > 0);
+// Control del detector: el elegido sí recibió el WhatsApp del cliente mientras estaba asignado.
+check('Control: el detector encuentra el WhatsApp del cliente en lo que recibió el elegido asignado', found('elegido', [PHONES.cliente], 'asignado').length > 0);
 
 for (const [u, path] of avatars) await u.sb.storage.from('avatars').remove([path]);
 for (const u of Object.values(users)) await u.sb.removeAllChannels();

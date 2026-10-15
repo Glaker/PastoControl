@@ -152,34 +152,11 @@ export type Database = {
           },
         ]
       }
-      job_private: {
-        Row: {
-          address: string
-          job_id: string
-          updated_at: string
-        }
-        Insert: {
-          address: string
-          job_id: string
-          updated_at?: string
-        }
-        Update: {
-          address?: string
-          job_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_private_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: true
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       jobs: {
         Row: {
+          address_between: string | null
+          address_number: string | null
+          address_street: string
           cancelled_at: string | null
           cancelled_by: string | null
           client_id: string
@@ -187,16 +164,21 @@ export type Database = {
           desired_at: string
           id: string
           locality_id: number
+          location_lat: number | null
+          location_lng: number | null
           notes: string | null
           photo_paths: string[]
           price_ars: number
           republished_from: string | null
           status: string
           updated_at: string
-          zone: string
+          zone: string | null
           is_expired: boolean | null
         }
         Insert: {
+          address_between?: string | null
+          address_number?: string | null
+          address_street: string
           cancelled_at?: string | null
           cancelled_by?: string | null
           client_id: string
@@ -204,15 +186,20 @@ export type Database = {
           desired_at: string
           id?: string
           locality_id: number
+          location_lat?: number | null
+          location_lng?: number | null
           notes?: string | null
           photo_paths?: string[]
           price_ars: number
           republished_from?: string | null
           status?: string
           updated_at?: string
-          zone: string
+          zone?: string | null
         }
         Update: {
+          address_between?: string | null
+          address_number?: string | null
+          address_street?: string
           cancelled_at?: string | null
           cancelled_by?: string | null
           client_id?: string
@@ -220,13 +207,15 @@ export type Database = {
           desired_at?: string
           id?: string
           locality_id?: number
+          location_lat?: number | null
+          location_lng?: number | null
           notes?: string | null
           photo_paths?: string[]
           price_ars?: number
           republished_from?: string | null
           status?: string
           updated_at?: string
-          zone?: string
+          zone?: string | null
         }
         Relationships: [
           {
@@ -261,32 +250,41 @@ export type Database = {
       }
       localities: {
         Row: {
+          center_lat: number
+          center_lng: number
           created_at: string
           id: number
           is_active: boolean
           name: string
           phone_area_code: string
           province: string
+          radius_m: number
           slug: string
           timezone: string
         }
         Insert: {
+          center_lat: number
+          center_lng: number
           created_at?: string
           id?: never
           is_active?: boolean
           name: string
           phone_area_code: string
           province: string
+          radius_m: number
           slug: string
           timezone?: string
         }
         Update: {
+          center_lat?: number
+          center_lng?: number
           created_at?: string
           id?: never
           is_active?: boolean
           name?: string
           phone_area_code?: string
           province?: string
+          radius_m?: number
           slug?: string
           timezone?: string
         }
@@ -439,18 +437,24 @@ export type Database = {
       }
       profile_private: {
         Row: {
+          base_lat: number | null
+          base_lng: number | null
           last_name: string
           phone_e164: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          base_lat?: number | null
+          base_lng?: number | null
           last_name: string
           phone_e164: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          base_lat?: number | null
+          base_lng?: number | null
           last_name?: string
           phone_e164?: string
           updated_at?: string
@@ -530,14 +534,18 @@ export type Database = {
       cancel_job: { Args: { p_job_id: string }; Returns: undefined }
       create_job: {
         Args: {
-          p_address: string
+          p_address_between?: string
+          p_address_number: string
+          p_address_street: string
           p_desired_at: string
           p_id: string
+          p_location_lat: number
+          p_location_lng: number
           p_notes?: string
           p_photo_paths?: string[]
           p_price_ars: number
           p_republished_from?: string
-          p_zone: string
+          p_zone?: string
         }
         Returns: string
       }
@@ -565,7 +573,6 @@ export type Database = {
       get_job_contact: {
         Args: { p_job_id: string }
         Returns: {
-          address: string
           agreed_at: string
           agreed_price_ars: number
           counterpart_role: string
@@ -599,6 +606,10 @@ export type Database = {
         Args: { p_auth: string; p_endpoint: string; p_p256dh: string }
         Returns: undefined
       }
+      set_my_base_location: {
+        Args: { p_lat: number; p_lng: number }
+        Returns: undefined
+      }
       update_application: {
         Args: {
           p_application_id: string
@@ -609,13 +620,17 @@ export type Database = {
       }
       update_job: {
         Args: {
-          p_address: string
+          p_address_between?: string
+          p_address_number: string
+          p_address_street: string
           p_desired_at: string
           p_job_id: string
+          p_location_lat: number
+          p_location_lng: number
           p_notes?: string
           p_photo_paths?: string[]
           p_price_ars: number
-          p_zone: string
+          p_zone?: string
         }
         Returns: undefined
       }

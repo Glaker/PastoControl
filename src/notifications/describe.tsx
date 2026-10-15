@@ -12,7 +12,7 @@ export type NotificationView = {
 };
 
 /**
- * Texto de cada aviso. Solo usa el payload (campos públicos): nunca dirección ni teléfono.
+ * Texto de cada aviso. Solo usa el payload (campos públicos): nunca teléfono ni apellido.
  * La zona horaria viene en el payload (la de la localidad del pedido); si faltara, la del perfil.
  */
 export function describeNotification(
@@ -21,7 +21,8 @@ export function describeNotification(
 ): NotificationView {
   const p = n.payload ?? {};
   const tz = p.tz ?? fallbackTimeZone;
-  const zone = p.zone ?? 'tu pedido';
+  // Lugar del pedido: la dirección (la zona en los avisos anteriores a que fuera visible).
+  const zone = p.address ?? p.zone ?? 'tu pedido';
   const actor = p.actor_name ?? 'Alguien';
 
   const proposal = () => {
@@ -73,7 +74,7 @@ export function describeNotification(
         title: '¡Te eligieron!',
         body: `${actor} aceptó tu postulación para ${zone}${p.price_ars ? `: ${formatPrice(p.price_ars)}` : ''}${
           p.desired_at ? `, ${formatDateTime(p.desired_at, tz)}` : ''
-        }. Ya podés ver la dirección y escribirle por WhatsApp.`,
+        }. Ya podés escribirle por WhatsApp.`,
         to: n.job_id ? `/cortar/trabajo/${n.job_id}` : null,
       };
     case 'postulacion_rechazada':

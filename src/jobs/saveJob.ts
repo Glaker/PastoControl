@@ -1,3 +1,4 @@
+import type { LatLng } from '../lib/geo';
 import { supabase } from '../lib/supabase';
 
 /**
@@ -10,8 +11,13 @@ export type PhotoItem =
   | { kind: 'new'; key: string; blob: Blob };
 
 export type JobInput = {
+  location: LatLng;
+  street: string;
+  number: string;
+  /** Entre calles (opcional, '' = sin dato). */
+  between: string;
+  /** Zona o barrio (opcional, '' = sin dato). */
   zone: string;
-  address: string;
   priceArs: number;
   /** ISO, ya convertido desde la zona horaria de la localidad. */
   desiredAt: string;
@@ -55,6 +61,18 @@ async function removeQuietly(paths: string[]) {
   if (paths.length) await bucket().remove(paths).catch(() => undefined);
 }
 
+/** Pin, dirección y zona: los mismos parámetros en create_job y update_job. Vacío = null. */
+function placeParams(input: JobInput) {
+  return {
+    p_location_lat: input.location.lat,
+    p_location_lng: input.location.lng,
+    p_address_street: input.street,
+    p_address_number: input.number,
+    p_address_between: input.between || undefined,
+    p_zone: input.zone || undefined,
+  };
+}
+
 /**
  * Publica un pedido. El id se genera acá para subir las fotos antes a su carpeta;
  * si la RPC falla, se borran.
@@ -65,8 +83,7 @@ export async function createJob(userId: string, input: JobInput, republishedFrom
 
   const { error } = await supabase.rpc('create_job', {
     p_id: jobId,
-    p_zone: input.zone,
-    p_address: input.address,
+    ...placeParams(input),
     p_price_ars: input.priceArs,
     p_desired_at: input.desiredAt,
     p_notes: input.notes,
@@ -86,8 +103,7 @@ export async function updateJob(userId: string, jobId: string, input: JobInput, 
 
   const { error } = await supabase.rpc('update_job', {
     p_job_id: jobId,
-    p_zone: input.zone,
-    p_address: input.address,
+    ...placeParams(input),
     p_price_ars: input.priceArs,
     p_desired_at: input.desiredAt,
     p_notes: input.notes,

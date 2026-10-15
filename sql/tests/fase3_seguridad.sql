@@ -44,8 +44,8 @@ declare
   prof_b text;  -- upsert_my_profile de B (cliente y cortador según %s)
 begin
   select id into loc from public.localities where slug = '25-de-mayo-bsas';
-  insert into public.localities (slug, name, province, phone_area_code)
-  values ('otra-localidad-prueba', 'Otra', 'Buenos Aires', '2346')
+  insert into public.localities (slug, name, province, phone_area_code, center_lat, center_lng, radius_m)
+  values ('otra-localidad-prueba', 'Otra', 'Buenos Aires', '2346', -35.0, -60.0, 5000)
   returning id into loc2;
 
   p1 := a || '/' || j1 || '/1.jpg';
@@ -74,10 +74,9 @@ begin
     (a, 'Álvarez', '+5492345111111'), (b, 'Benítez', '+5492345222222'), (b2, 'Bustos', '+5492345222333'),
     (f, 'Funes', '+5492345666666'), (c, 'Castro', '+5492345333333'), (d, 'Díaz', '+5492346444444');
 
-  insert into public.jobs (id, client_id, locality_id, zone, price_ars, desired_at, photo_paths) values
-    (j1, a, loc, 'Barrio Centro', 15000, now() + interval '2 days', array[p1]),
-    (j2, a, loc, 'Villa Sanz', 15000, now() + interval '3 days', '{}');
-  insert into public.job_private (job_id, address) values (j1, 'Calle Falsa 123'), (j2, 'Mitre 450');
+  insert into public.jobs (id, client_id, locality_id, zone, address_street, address_number, location_lat, location_lng, price_ars, desired_at, photo_paths) values
+    (j1, a, loc, 'Barrio Centro', 'Calle Falsa', '123', -35.4324, -60.1716, 15000, now() + interval '2 days', array[p1]),
+    (j2, a, loc, 'Villa Sanz', 'Mitre', '450', -35.4300, -60.1700, 15000, now() + interval '3 days', '{}');
 
   app_b := format('(select id from pg_temp.t_app where cutter_id = %L and job_id = %L)', b, j1);
   app_b2 := format('(select id from pg_temp.t_app where cutter_id = %L and job_id = %L)', b2, j1);
@@ -123,7 +122,7 @@ begin
       (36, 'B', 'B no ve los avisos de A', 'select * from public.notifications', 'count:0'),
       (37, 'A', 'A ve sus 3 avisos (B y B2 en el pedido 1, F en el 2)', 'select * from public.notifications', 'count:3'),
       (38, 'admin', 'Ningún aviso tiene dirección, teléfono ni apellido', 'select 1 from public.notifications where payload::text ilike any (array[''%Calle Falsa%'', ''%Mitre 450%'', ''%+549%'', ''%Benítez%'', ''%Bustos%'', ''%Funes%'', ''%Álvarez%''])', 'count:0'),
-      (39, 'admin', 'Los avisos solo tienen campos de la lista blanca', 'select 1 from public.notifications where (payload - array[''zone'', ''actor_name'', ''price_ars'', ''desired_at'', ''proposed_price_ars'', ''proposed_at'', ''tz'']) <> ''{}''::jsonb', 'count:0'),
+      (39, 'admin', 'Los avisos solo tienen campos de la lista blanca', 'select 1 from public.notifications where (payload - array[''zone'', ''address'', ''actor_name'', ''price_ars'', ''desired_at'', ''proposed_price_ars'', ''proposed_at'', ''tz'']) <> ''{}''::jsonb', 'count:0'),
       (40, 'B', 'B no puede insertar postulaciones directo', format('insert into public.applications (job_id, cutter_id) values (%L, %L)', j2, b), 'err:permission denied'),
       (41, 'B', 'B no puede cambiar el estado de su postulación directo', format('update public.applications set status = ''aceptada'' where cutter_id = %L', b), 'err:permission denied'),
       (42, 'B', 'B no puede borrar postulaciones directo', format('delete from public.applications where cutter_id = %L', b), 'err:permission denied'),
@@ -145,7 +144,7 @@ begin
       (62, 'admin', 'A recibió "postulacion_editada"', format('select 1 from public.notifications where user_id = %L and kind = ''postulacion_editada''', a), 'count:1'),
       (63, 'B', 'B "edita" sin cambiar nada', format('select public.update_application(%s, 18000)', app_b), 'ok'),
       (64, 'admin', 'Sin cambios no hay aviso nuevo', format('select 1 from public.notifications where user_id = %L and kind = ''postulacion_editada''', a), 'count:1'),
-      (65, 'A', 'A no puede editar un pedido con postulaciones pendientes', format('select public.update_job(%L, ''Centro'', ''Calle Falsa 123'', 16000, now() + interval ''2 days'', null, ''{}'')', j1), 'err:ya tiene postulaciones'),
+      (65, 'A', 'A no puede editar un pedido con postulaciones pendientes', format('select public.update_job(%L, -35.4324, -60.1716, ''Calle Falsa'', ''123'', 16000, now() + interval ''2 days'')', j1), 'err:ya tiene postulaciones'),
 
       -- Retirar y volver
       (70, 'B', 'B retira su postulación', format('select public.withdraw_application(%s)', app_b), 'ok'),
@@ -166,7 +165,7 @@ begin
       (92, 'F', 'F (no postulado) ya no lo ve', format('select * from public.jobs where id = %L', j1), 'count:0'),
       (93, 'B', 'B sigue viendo la foto del pedido 1', format('select 1 from storage.objects where bucket_id = ''job-photos'' and name = %L', p1), 'count:1'),
       (94, 'F', 'F no ve la foto', format('select 1 from storage.objects where bucket_id = ''job-photos'' and name = %L', p1), 'count:0'),
-      (95, 'B', 'B no ve la dirección del pedido en el que se postuló', format('select * from public.job_private where job_id = %L', j1), 'count:0'),
+      (95, 'B', 'B ve la dirección del pedido en el que se postuló (dirección visible), pero no el teléfono ni el apellido de A', format('select 1 from public.jobs j where j.id = %L and j.address_street = ''Calle Falsa'' and not exists (select 1 from public.profile_private pp where pp.user_id = j.client_id)', j1), 'count:1'),
       (96, 'F', 'F no puede postularse a un pedido vencido', format('select public.apply_to_job(%L)', j1), 'err:ya no recibe'),
       (97, 'B2', 'B2 no puede quedarse con el horario publicado si ya pasó', format('select public.update_application(%s, 20000, null)', app_b2), 'err:horario publicado ya pasó'),
       (98, 'B2', 'B2 sí puede proponer un horario futuro en un pedido vencido', format('select public.update_application(%s, 20000, now() + interval ''1 day'')', app_b2), 'ok'),

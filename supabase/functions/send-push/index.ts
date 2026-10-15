@@ -45,6 +45,7 @@ const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey(), {
 
 type Payload = {
   zone?: string;
+  address?: string;
   actor_name?: string;
   price_ars?: number;
   desired_at?: string;
@@ -176,7 +177,8 @@ function formatDateTime(iso: string, timeZone: string): string {
 
 function describe(kind: string, jobId: string | null, p: Payload): { title: string; body: string; url: string } {
   const tz = p.tz ?? DEFAULT_TZ;
-  const zone = p.zone ?? 'tu pedido';
+  // Lugar del pedido: la dirección (la zona en los avisos anteriores a que fuera visible).
+  const zone = p.address ?? p.zone ?? 'tu pedido';
   const actor = p.actor_name ?? 'Alguien';
   const when = p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : '';
   const pedido = jobId ? `/pedir/pedido/${jobId}` : '/avisos';
@@ -213,7 +215,7 @@ function describe(kind: string, jobId: string | null, p: Payload): { title: stri
         title: '¡Te eligieron!',
         body: `${actor} aceptó tu postulación para ${zone}${p.price_ars ? `: ${formatPrice(p.price_ars)}` : ''}${
           p.desired_at ? `, ${formatDateTime(p.desired_at, tz)}` : ''
-        }. Ya podés ver la dirección y escribirle por WhatsApp.`,
+        }. Ya podés escribirle por WhatsApp.`,
         url: trabajo,
       };
     case 'postulacion_rechazada':

@@ -1,10 +1,11 @@
 import { Avatar, Badge, Card, Group, Stack, Text } from '@mantine/core';
-import { IconCalendarEvent, IconChevronRight, IconMapPin, IconPhoto, IconSend, IconUsers } from '@tabler/icons-react';
+import { IconCalendarEvent, IconChevronRight, IconHome, IconPhoto, IconRoute, IconSend, IconUsers } from '@tabler/icons-react';
 import { Link } from 'react-router';
 import { formatDateTime, formatPrice } from '../lib/format';
+import { formatDistance } from '../lib/geo';
 import { displayName, useAvatarUrl } from '../profile/queries';
 import { JobStatusBadge } from './JobStatusBadge';
-import { jobDisplayStatus, jobTerms, pendingCount, type Job } from './queries';
+import { jobAddress, jobDisplayStatus, jobTerms, pendingCount, type Job } from './queries';
 import classes from './jobs.module.css';
 
 type Props = {
@@ -13,9 +14,11 @@ type Props = {
   /** Mis pedidos: muestra el estado. Trabajos disponibles: muestra quién publica. */
   variant: 'owner' | 'cutter';
   thumbUrl?: string;
+  /** Distancia en metros desde la ubicación del cortador (undefined = no se muestra). */
+  distanceM?: number | null;
 };
 
-export function JobCard({ job, to, variant, thumbUrl }: Props) {
+export function JobCard({ job, to, variant, thumbUrl, distanceM }: Props) {
   const tz = job.locality.timezone;
   const terms = jobTerms(job);
   return (
@@ -51,9 +54,25 @@ export function JobCard({ job, to, variant, thumbUrl }: Props) {
               <Text>{formatDateTime(terms.at, tz)}</Text>
             </Group>
             <Group gap={6} wrap="nowrap" align="flex-start">
-              <IconMapPin size={20} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
-              <Text>{job.zone}</Text>
+              <IconHome size={20} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+              <Text>
+                {jobAddress(job)}
+                {job.zone && (
+                  <Text span c="dimmed">
+                    {' '}
+                    · {job.zone}
+                  </Text>
+                )}
+              </Text>
             </Group>
+            {distanceM != null && (
+              <Group gap={6} wrap="nowrap" align="flex-start" c="pasto.9">
+                <IconRoute size={20} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+                <Text fw={700} c="inherit">
+                  {formatDistance(distanceM)}
+                </Text>
+              </Group>
+            )}
           </Stack>
           {thumbUrl && (
             <div className={classes.cardThumb}>

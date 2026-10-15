@@ -1,3 +1,4 @@
+import type { LatLng } from '../lib/geo';
 import { supabase } from '../lib/supabase';
 
 export type ProfileInput = {
@@ -53,4 +54,14 @@ export async function saveProfile(userId: string, input: ProfileInput): Promise<
     // Limpieza: si falla no pasa nada grave (queda un archivo huérfano en la carpeta del usuario).
     await bucket().remove([previous]).catch(() => undefined);
   }
+}
+
+/** Ubicación base del cortador (privada). null la borra. */
+export async function saveBaseLocation(point: LatLng | null): Promise<void> {
+  // Los dos en null (no omitidos: la RPC no tiene valores por defecto) borran la ubicación.
+  const { error } = await supabase.rpc('set_my_base_location', {
+    p_lat: (point?.lat ?? null) as number,
+    p_lng: (point?.lng ?? null) as number,
+  });
+  if (error) throw error;
 }

@@ -9,6 +9,8 @@ import { describeNotification } from './describe';
 /** Solo campos públicos (lista blanca en private.notify). */
 export type NotificationPayload = {
   zone?: string;
+  /** Calle y número del pedido (desde que la dirección es visible; los avisos anteriores no la traen). */
+  address?: string;
   actor_name?: string;
   price_ars?: number;
   desired_at?: string;

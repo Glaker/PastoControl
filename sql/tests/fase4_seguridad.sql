@@ -46,8 +46,8 @@ declare
   prof text;
 begin
   select id into loc from public.localities where slug = '25-de-mayo-bsas';
-  insert into public.localities (slug, name, province, phone_area_code)
-  values ('otra-localidad-prueba', 'Otra', 'Buenos Aires', '2346')
+  insert into public.localities (slug, name, province, phone_area_code, center_lat, center_lng, radius_m)
+  values ('otra-localidad-prueba', 'Otra', 'Buenos Aires', '2346', -35.0, -60.0, 5000)
   returning id into loc2;
 
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
@@ -72,13 +72,11 @@ begin
     (a, 'Álvarez', '+5492345111111'), (b, 'Benítez', '+5492345222222'), (b2, 'Bustos', '+5492345222333'),
     (f, 'Funes', '+5492345666666'), (c, 'Castro', '+5492345333333'), (d, 'Díaz', '+5492346444444');
 
-  insert into public.jobs (id, client_id, locality_id, zone, price_ars, desired_at) values
-    (j1, a, loc, 'Barrio Centro', 15000, now() + interval '2 days'),
-    (j2, a, loc, 'Villa Sanz', 15000, now() + interval '3 days'),
-    (j3, a, loc, 'Las Quintas', 15000, now() + interval '4 days'),
-    (j4, a, loc, 'El Ombú', 15000, now() + interval '5 days');
-  insert into public.job_private (job_id, address) values
-    (j1, 'Calle Falsa 123'), (j2, 'Mitre 450'), (j3, 'Rivadavia 77'), (j4, 'Belgrano 9');
+  insert into public.jobs (id, client_id, locality_id, zone, address_street, address_number, location_lat, location_lng, price_ars, desired_at) values
+    (j1, a, loc, 'Barrio Centro', 'Calle Falsa', '123', -35.4324, -60.1716, 15000, now() + interval '2 days'),
+    (j2, a, loc, 'Villa Sanz', 'Mitre', '450', -35.4300, -60.1700, 15000, now() + interval '3 days'),
+    (j3, a, loc, 'Las Quintas', 'Rivadavia', '77', -35.4350, -60.1750, 15000, now() + interval '4 days'),
+    (j4, a, loc, 'El Ombú', 'Belgrano', '9', -35.4280, -60.1650, 15000, now() + interval '5 days');
 
   accept := 'select public.accept_application(' || app || ', ' || fresh || ')';
   prof := 'select public.upsert_my_profile(%L, %L, %L, %s::smallint, %L::boolean, %L::boolean, %L)';
@@ -129,14 +127,14 @@ begin
 
       -- Contacto después de asignar
       (45, 'A', 'A recibe nombre completo y WhatsApp de B', format('select 1 from public.get_job_contact(%L) where counterpart_role = ''cortador'' and first_name = ''Beto'' and last_name = ''Benítez'' and phone_e164 = ''+5492345222222'' and agreed_price_ars = 15000', j1), 'count:1'),
-      (46, 'B', 'B recibe dirección, nombre completo y WhatsApp de A', format('select 1 from public.get_job_contact(%L) where counterpart_role = ''cliente'' and address = ''Calle Falsa 123'' and last_name = ''Álvarez'' and phone_e164 = ''+5492345111111''', j1), 'count:1'),
+      (46, 'B', 'B recibe nombre completo y WhatsApp de A', format('select 1 from public.get_job_contact(%L) where counterpart_role = ''cliente'' and last_name = ''Álvarez'' and phone_e164 = ''+5492345111111''', j1), 'count:1'),
       (47, 'B2', 'B2 (rechazado) no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (48, 'F', 'F (no postulado) no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (49, 'C', 'C (tercero) no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (50, 'D', 'D (otra localidad) no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
-      (51, 'B', 'B sigue sin poder leer job_private directo', format('select * from public.job_private where job_id = %L', j1), 'count:0'),
+      (51, 'B', 'B no puede leer el teléfono ni el apellido de A directo (solo por get_job_contact)', format('select * from public.profile_private where user_id = %L', a), 'count:0'),
       (52, 'B', 'B sigue sin poder leer profile_private de A directo', format('select * from public.profile_private where user_id = %L', a), 'count:0'),
-      (53, 'B2', 'B2 ve el pedido asignado (se había postulado) pero no la dirección', format('select 1 from public.jobs j left join public.job_private jp on jp.job_id = j.id where j.id = %L and j.status = ''asignado'' and jp.address is null', j1), 'count:1'),
+      (53, 'B2', 'B2 ve el pedido asignado (se había postulado) con su dirección, pero no el teléfono ni el apellido de A', format('select 1 from public.jobs j where j.id = %L and j.status = ''asignado'' and j.address_street = ''Calle Falsa'' and not exists (select 1 from public.profile_private pp where pp.user_id = %L)', j1, a), 'count:1'),
       (54, 'B2', 'B2 (no elegido) no lee el acuerdo: ni precio ni horario ni quién', 'select * from public.job_agreements', 'count:0'),
       (85, 'F', 'F (no postulado) no lee ningún acuerdo', 'select * from public.job_agreements', 'count:0'),
       (86, 'C', 'C (tercero) no lee ningún acuerdo', 'select * from public.job_agreements', 'count:0'),
@@ -159,7 +157,7 @@ begin
       (71, 'B2', 'B2 (no elegido) no puede saber que canceló el elegido ni quién era', format('select 1 from public.jobs where id = %L and status = ''cancelado'' and cancelled_by is null', j1), 'count:1'),
       (64, 'admin', 'A recibió "trabajo_cancelado_por_cortador" con el nombre visible de B', format('select 1 from public.notifications where user_id = %L and kind = ''trabajo_cancelado_por_cortador'' and job_id = %L and payload->>''actor_name'' = ''Beto B.''', a, j1), 'count:1'),
       (65, 'A', 'Cancelado, A ya no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
-      (66, 'B', 'Cancelado, B ya no recibe el contacto (ni la dirección)', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
+      (66, 'B', 'Cancelado, B ya no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (67, 'B', 'B no puede cancelarlo de nuevo', format('select public.cancel_job(%L)', j1), 'err:No encontramos ese pedido'),
       (68, 'A', 'A cancela el pedido 3 (asignado a B2)', format('select public.cancel_job(%L)', j3), 'ok'),
       (69, 'admin', 'B2 recibió "trabajo_cancelado_por_cliente"', format('select 1 from public.notifications where user_id = %L and kind = ''trabajo_cancelado_por_cliente'' and job_id = %L and payload->>''actor_name'' = ''Ana Á.''', b2, j3), 'count:1'),
@@ -180,7 +178,7 @@ begin
       -- Estructura y datos
       (90, 'admin', 'Las RPCs nuevas son SECURITY DEFINER con search_path vacío', 'select 1 from pg_proc where pronamespace = ''public''::regnamespace and proname in (''accept_application'', ''get_job_applicants'', ''get_job_contact'') and prosecdef and proconfig @> array[''search_path=""'']', 'count:3'),
       (91, 'admin', 'anon no puede ejecutar las RPCs nuevas', 'select 1 from pg_proc p where p.pronamespace = ''public''::regnamespace and p.proname in (''accept_application'', ''get_job_applicants'', ''get_job_contact'') and has_function_privilege(''anon'', p.oid, ''execute'')', 'count:0'),
-      (92, 'admin', 'jobs sigue sin columnas de dirección ni teléfono', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''jobs'' and column_name ilike any (array[''%address%'', ''%direcc%'', ''%phone%''])', 'count:0'),
+      (92, 'admin', 'jobs sigue sin columnas de teléfono ni apellido', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''jobs'' and column_name ilike any (array[''%phone%'', ''%telef%'', ''%last_name%'', ''%apellido%''])', 'count:0'),
       (93, 'admin', 'Ningún aviso tiene dirección, teléfono ni apellido', 'select 1 from public.notifications where payload::text ilike any (array[''%Calle Falsa%'', ''%Mitre 450%'', ''%Rivadavia%'', ''%Belgrano 9%'', ''%+549%'', ''%Benítez%'', ''%Bustos%'', ''%Álvarez%''])', 'count:0'),
       (94, 'admin', 'Ningún pedido asignado sin acuerdo', 'select 1 from public.jobs j where j.status in (''asignado'', ''realizado'') and not exists (select 1 from public.job_agreements g where g.job_id = j.id)', 'count:0'),
       (96, 'admin', 'jobs ya no tiene columnas de acuerdo', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''jobs'' and column_name in (''assigned_application_id'', ''assigned_cutter_id'', ''agreed_price_ars'', ''agreed_at'', ''assigned_at'')', 'count:0'),

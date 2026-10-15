@@ -59,15 +59,14 @@ begin
     (a, 'Álvarez', '+5492345111111'), (b, 'Benítez', '+5492345222222'), (b2, 'Bustos', '+5492345222333'),
     (c, 'Castro', '+5492345333333');
 
-  insert into public.jobs (id, client_id, locality_id, zone, price_ars, desired_at) values
-    (j1, a, loc, 'Barrio Centro', 15000, now() + interval '2 days'),
-    (j2, a, loc, 'Villa Sanz', 15000, now() + interval '3 days'),
-    (j7, a, loc, 'El Ombú', 15000, now() + interval '4 days');
-  insert into public.job_private (job_id, address) values (j1, 'Calle Falsa 123'), (j2, 'Mitre 450'), (j7, 'Belgrano 9');
+  insert into public.jobs (id, client_id, locality_id, zone, address_street, address_number, location_lat, location_lng, price_ars, desired_at) values
+    (j1, a, loc, 'Barrio Centro', 'Calle Falsa', '123', -35.4324, -60.1716, 15000, now() + interval '2 days'),
+    (j2, a, loc, 'Villa Sanz', 'Mitre', '450', -35.4300, -60.1700, 15000, now() + interval '3 days'),
+    (j7, a, loc, 'El Ombú', 'Belgrano', '9', -35.4280, -60.1650, 15000, now() + interval '4 days');
   -- Pedidos de relleno para las calificaciones viejas (la clave es job_id + rater_id).
   -- Cancelados, para que no cuenten en el límite de 5 pedidos publicados de A.
-  insert into public.jobs (id, client_id, locality_id, zone, price_ars, desired_at, status, cancelled_at)
-  select ('00000000-0000-4000-c000-00000000000' || g)::uuid, a, loc, 'Relleno', 15000, now() + interval '1 day', 'cancelado', now()
+  insert into public.jobs (id, client_id, locality_id, zone, address_street, price_ars, desired_at, status, cancelled_at)
+  select ('00000000-0000-4000-c000-00000000000' || g)::uuid, a, loc, 'Relleno', 'Relleno 1', 15000, now() + interval '1 day', 'cancelado', now()
   from generate_series(1, 7) g;
 
   for t in
@@ -100,7 +99,7 @@ begin
 
       -- Contacto con el trabajo realizado
       (30, 'A', 'A sigue recibiendo el contacto de B con el trabajo realizado', format('select 1 from public.get_job_contact(%L) where phone_e164 = ''+5492345222222''', j1), 'count:1'),
-      (31, 'B', 'B sigue recibiendo el contacto de A (y la dirección) con el trabajo realizado', format('select 1 from public.get_job_contact(%L) where address = ''Calle Falsa 123''', j1), 'count:1'),
+      (31, 'B', 'B sigue recibiendo el contacto de A con el trabajo realizado', format('select 1 from public.get_job_contact(%L) where last_name = ''Álvarez'' and phone_e164 = ''+5492345111111''', j1), 'count:1'),
       (32, 'B2', 'B2 no recibe el contacto del realizado', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (33, 'C', 'C no recibe el contacto del realizado', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (34, 'B2', 'B2 no lee el acuerdo del realizado', 'select * from public.job_agreements', 'count:0'),
@@ -140,9 +139,9 @@ begin
       (81, 'A', 'En la lista de postulantes, B trae 1 realizado y 90 %', format('select 1 from public.get_job_applicants(%L) where cutter_id = %L and done_jobs = 1 and yes_pct = 90', j7, b), 'count:1'),
 
       -- Volver a publicar
-      (90, 'A', 'A vuelve a publicar el pedido realizado', format('select public.create_job(%L, ''Barrio Centro'', ''Calle Falsa 123'', 15000, now() + interval ''7 days'', null, ''{}'', %L)', j8, j1), 'ok'),
+      (90, 'A', 'A vuelve a publicar el pedido realizado', format('select public.create_job(%L, -35.4324, -60.1716, ''Calle Falsa'', ''123'', 15000, now() + interval ''7 days'', null, ''Barrio Centro'', null, ''{}'', %L)', j8, j1), 'ok'),
       (91, 'admin', 'El pedido nuevo queda publicado y apunta al original', format('select 1 from public.jobs where id = %L and status = ''publicado'' and republished_from = %L', j8, j1), 'count:1'),
-      (92, 'C', 'C no puede volver a publicar el pedido de A', format('select public.create_job(gen_random_uuid(), ''Centro'', ''Calle 1'', 15000, now() + interval ''1 day'', null, ''{}'', %L)', j1), 'err:volver a publicar'),
+      (92, 'C', 'C no puede volver a publicar el pedido de A', format('select public.create_job(gen_random_uuid(), -35.4324, -60.1716, ''Calle'', ''1'', 15000, now() + interval ''1 day'', null, null, null, ''{}'', %L)', j1), 'err:volver a publicar'),
 
       -- Estructura
       (95, 'admin', 'ratings: RLS activo, sin políticas', 'select 1 from pg_class c where c.oid = ''public.ratings''::regclass and c.relrowsecurity and not exists (select 1 from pg_policies p where p.tablename = ''ratings'')', 'count:1'),

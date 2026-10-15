@@ -1,17 +1,22 @@
-import { Alert, Button, NumberInput, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { Alert, Button, Group, NumberInput, Stack, Text, Textarea, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { IconAlertTriangle, IconArrowLeft, IconShieldLock } from '@tabler/icons-react';
-import { useState, type ReactNode } from 'react';
+import { IconAlertTriangle, IconArrowLeft } from '@tabler/icons-react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useUnsavedChanges } from '../app/update/updateState';
 import dayjs from '../lib/dayjs';
 import { friendlyError } from '../lib/errors';
+import { isInsideLocality, outsideLocalityMessage, type LatLng, type LocalityArea } from '../lib/geo';
+import { LocationField } from '../map/LocationField';
 import { PhotoPicker } from './PhotoPicker';
 import type { JobInput, PhotoItem } from './saveJob';
 import { DayTimeFields, MAX_PRICE, MIN_PRICE, splitInstant, toInstant, validatePrice, validateWhen } from './schedule';
 
 export type JobFormInitial = {
+  location: LatLng | null;
+  street: string;
+  number: string;
+  between: string;
   zone: string;
-  address: string;
   priceArs: number;
   desiredAt: string | null;
   notes: string;
@@ -19,8 +24,9 @@ export type JobFormInitial = {
 };
 
 type Props = {
-  /** Zona horaria de la localidad: la fecha y la hora se eligen y se guardan en esa zona. */
-  timeZone: string;
+  /** Localidad: el pin tiene que caer dentro de su radio, y la fecha y la hora se eligen y se guardan
+   * en su zona horaria. */
+  locality: LocalityArea & { timezone: string };
   initial?: JobFormInitial;
   submitLabel: string;
   submitIcon: ReactNode;
@@ -33,15 +39,20 @@ type Props = {
 };
 
 type Values = {
+  location: LatLng | null;
+  street: string;
+  number: string;
+  between: string;
   zone: string;
-  address: string;
   price: number | string;
   date: string | null;
   time: string | null;
   notes: string;
 };
 
-export function JobForm({ timeZone, initial, copyPhotos, submitLabel, submitIcon, beforeSubmit, onSubmit, onCancel }: Props) {
+export function JobForm({ locality, initial, copyPhotos, submitLabel, submitIcon, beforeSubmit, onSubmit, onCancel }: Props) {
+  const timeZone = locality.timezone;
+  const formRef = useRef<HTMLFormElement>(null);
   const [photos, setPhotos] = useState<PhotoItem[]>(() =>
     (initial?.photoPaths ?? []).map((path) => ({ kind: copyPhotos ? 'copy' : 'existing', key: path, path })),
   );
@@ -55,21 +66,31 @@ export function JobForm({ timeZone, initial, copyPhotos, submitLabel, submitIcon
 
   const form = useForm<Values>({
     initialValues: {
+      location: initial?.location ?? null,
+      street: initial?.street ?? '',
+      number: initial?.number ?? '',
+      between: initial?.between ?? '',
       zone: initial?.zone ?? '',
-      address: initial?.address ?? '',
       price: initial?.priceArs ?? '',
       date: initialWhen && initialStillValid ? initialWhen.date : null,
       time: initialWhen?.time ?? null,
       notes: initial?.notes ?? '',
     },
     validate: {
+      location: (v) =>
+        !v ? 'Marcá la ubicación en el mapa.' : isInsideLocality(locality, v) ? null : outsideLocalityMessage(locality),
+      street: (v) => {
+        const len = v.trim().length;
+        return len < 2 ? 'Escribí la calle.' : len > 120 ? 'Hasta 120 letras.' : null;
+      },
+      number: (v) => (v.trim().length === 0 ? 'Escribí el número (o «s/n»).' : null),
+      between: (v) => {
+        const len = v.trim().length;
+        return len > 0 && len < 3 ? 'Escribí las dos calles o dejalo vacío.' : null;
+      },
       zone: (v) => {
         const len = v.trim().length;
-        return len < 2 ? 'Escribí la zona o el barrio.' : len > 80 ? 'Hasta 80 letras.' : null;
-      },
-      address: (v) => {
-        const len = v.trim().length;
-        return len < 3 ? 'Escribí la dirección.' : len > 200 ? 'Hasta 200 letras.' : null;
+        return len > 0 && len < 2 ? 'Escribí al menos 2 letras o dejalo vacío.' : null;
       },
       price: (v) => validatePrice(v, 'Escribí cuánto pagás.'),
       date: (v) => (v ? null : 'Elegí el día.'),
@@ -83,11 +104,22 @@ export function JobForm({ timeZone, initial, copyPhotos, submitLabel, submitIcon
     photos.some((p, i) => p.kind === 'new' || p.path !== initial?.photoPaths[i]);
   useUnsavedChanges(form.isDirty() || photosChanged);
 
+  // Si falta algo, lleva al primer campo con error (el mapa está arriba y el botón abajo de todo).
+  const showFirstError = () =>
+    requestAnimationFrame(() =>
+      formRef.current
+        ?.querySelector('.mantine-InputWrapper-error')
+        ?.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+    );
+
   const handleSubmit = form.onSubmit(async (values) => {
     setSaveError(null);
     const input: JobInput = {
+      location: values.location!,
+      street: values.street.trim(),
+      number: values.number.trim(),
+      between: values.between.trim(),
       zone: values.zone.trim(),
-      address: values.address.trim(),
       priceArs: values.price as number,
       desiredAt: toInstant(values.date!, values.time!, timeZone).toISOString(),
       notes: values.notes.trim(),
@@ -104,30 +136,47 @@ export function JobForm({ timeZone, initial, copyPhotos, submitLabel, submitIcon
     } finally {
       setSaving(false);
     }
-  });
+  }, showFirstError);
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form ref={formRef} onSubmit={handleSubmit} noValidate>
       <Stack gap="lg">
-        <Alert color="yellow" icon={<IconShieldLock aria-hidden />} title="Cuidá tu privacidad">
-          No pongas la dirección en la nota ni en las fotos (por ejemplo, el número de la casa). La dirección va
-          en su campo y solo la ve la persona que elijas.
-        </Alert>
-
-        <TextInput
-          label="Zona o barrio"
-          description="Para que los cortadores sepan más o menos dónde queda. Ej.: Barrio Centro, cerca de la plaza."
-          withAsterisk
-          maxLength={80}
-          {...form.getInputProps('zone')}
+        <LocationField
+          label="Dónde hay que cortar"
+          description="Marcá el terreno en el mapa: así los cortadores ven qué tan cerca les queda y llegan sin perderse."
+          required
+          locality={locality}
+          value={form.values.location}
+          onChange={(value) => {
+            form.setFieldValue('location', value);
+            form.clearFieldError('location');
+          }}
+          error={form.errors.location as string | undefined}
         />
+
+        <Group gap="sm" align="flex-start" wrap="nowrap">
+          <TextInput
+            label="Calle"
+            autoComplete="address-line1"
+            withAsterisk
+            maxLength={120}
+            style={{ flex: 1, minWidth: 0 }}
+            {...form.getInputProps('street')}
+          />
+          <TextInput
+            label="Número"
+            withAsterisk
+            maxLength={10}
+            w={112}
+            style={{ flex: 'none' }}
+            {...form.getInputProps('number')}
+          />
+        </Group>
         <TextInput
-          label="Dirección"
-          description="Solo la ve la persona que elijas, cuando aceptes su postulación."
-          autoComplete="street-address"
-          withAsterisk
-          maxLength={200}
-          {...form.getInputProps('address')}
+          label="Entre calles (opcional)"
+          description="Ej.: Mitre y Belgrano."
+          maxLength={120}
+          {...form.getInputProps('between')}
         />
         <NumberInput
           label="Cuánto pagás"
@@ -173,6 +222,13 @@ export function JobForm({ timeZone, initial, copyPhotos, submitLabel, submitIcon
         />
 
         <PhotoPicker photos={photos} onChange={setPhotos} disabled={saving} />
+
+        <TextInput
+          label="Zona o barrio (opcional)"
+          description="Si ayuda a ubicarse. Ej.: Barrio Centro, cerca de la plaza."
+          maxLength={80}
+          {...form.getInputProps('zone')}
+        />
 
         {saveError && (
           <Alert color="red" icon={<IconAlertTriangle aria-hidden />} title="No se guardó" role="alert">

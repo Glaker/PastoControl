@@ -1,0 +1,102 @@
+/* Estilos de los mapas (se cargan junto con Leaflet, a demanda). */
+
+.pc-map {
+  width: 100%;
+  height: 300px;
+  border-radius: var(--mantine-radius-md);
+  border: 1px solid var(--mantine-color-gray-4);
+  /* Por encima del mapa no hay que tapar menús ni modales de Mantine. */
+  z-index: 0;
+  font: inherit;
+}
+
+.pc-map--tall {
+  height: min(65vh, 520px);
+}
+
+/* Botones + y − de 44 px (áreas táctiles). */
+.pc-map .leaflet-bar a,
+.pc-map.leaflet-touch .leaflet-bar a {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  font-size: 24px;
+}
+
+.pc-map .leaflet-control-attribution {
+  font-size: 12px;
+}
+
+/* Pin del pedido: 48 px tocables. touch-action none: arrastrarlo con un dedo no scrollea la página. */
+.pc-pin {
+  --pin-color: var(--mantine-color-red-7);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  touch-action: none;
+  cursor: grab;
+  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.35));
+}
+
+/* Trabajos en el mapa: el precio en una etiqueta tocable de 44 px de alto. */
+.pc-price span {
+  position: absolute;
+  left: 0;
+  bottom: 8px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 22px;
+  background: var(--mantine-color-pasto-8);
+  color: #fff;
+  font-weight: 800;
+  font-size: 16px;
+  white-space: nowrap;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+}
+
+/* Punta que marca el lugar exacto. */
+.pc-price span::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  transform: translateX(-50%);
+  border: 7px solid transparent;
+  border-top-color: #fff;
+}
+
+.pc-price--selected span {
+  background: var(--mantine-color-orange-7);
+  font-size: 17px;
+}
+
+/* Origen de las distancias (ubicación actual o casa). */
+.pc-origin__dot {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--mantine-color-blue-6);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px var(--mantine-color-blue-6);
+}
+
+.pc-origin__label {
+  position: absolute;
+  left: 14px;
+  top: -11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.9);
+  color: var(--mantine-color-blue-9);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}

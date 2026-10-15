@@ -8,6 +8,7 @@ import { FullPageLoader } from '../components/FullPageLoader';
 import { formatPhone } from '../lib/phone';
 import { signOut } from '../auth/signOut';
 import { DeviceSettings } from '../push/DeviceSettings';
+import { BaseLocationCard } from '../profile/BaseLocationCard';
 import { ProfileForm } from '../profile/ProfileForm';
 import { useAvatarUrl, useLocalities, useMyProfile } from '../profile/queries';
 
@@ -91,6 +92,8 @@ export function PerfilPage() {
       >
         Ver mi perfil público
       </Button>
+
+      {profile.is_cutter && <BaseLocationCard profile={profile} />}
 
       <DeviceSettings />
 

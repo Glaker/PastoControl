@@ -53,10 +53,9 @@ begin
     (c, loc, 'Carla', 'C', null, true, false);
   insert into public.profile_private (user_id, last_name, phone_e164) values
     (a, 'Álvarez', '+5492345111111'), (b, 'Benítez', '+5492345222222'), (c, 'Castro', '+5492345333333');
-  insert into public.jobs (id, client_id, locality_id, zone, price_ars, desired_at) values
-    (j1, a, loc, 'Barrio Centro', 15000, now() + interval '2 days'),
-    (j3, c, loc, 'Villa Sanz', 15000, now() + interval '3 days');
-  insert into public.job_private (job_id, address) values (j1, 'Calle Falsa 123'), (j3, 'Mitre 450');
+  insert into public.jobs (id, client_id, locality_id, zone, address_street, address_number, location_lat, location_lng, price_ars, desired_at) values
+    (j1, a, loc, 'Barrio Centro', 'Calle Falsa', '123', -35.4324, -60.1716, 15000, now() + interval '2 days'),
+    (j3, c, loc, 'Villa Sanz', 'Mitre', '450', -35.4300, -60.1700, 15000, now() + interval '3 days');
 
   for t in
     select * from (values

@@ -4,8 +4,10 @@
 // los dos se califican y todos hacen los pedidos de la app y otros "maliciosos" (leer ratings,
 // contacto, acuerdo, estadísticas, has_rated ajeno). Se guardan TODAS las respuestas y eventos y se
 // verifica:
-//   * con el trabajo realizado, la dirección, el apellido y el WhatsApp siguen llegando solo a la
-//     contraparte; el no elegido, el tercero y anon no reciben nada privado ni el acuerdo;
+//   * con el trabajo realizado, el apellido y el WhatsApp siguen llegando solo a la contraparte; el no
+//     elegido, el tercero y anon no reciben nada privado ni el acuerdo. Desde la Fase 7 la dirección es
+//     visible para quien ve el pedido (el no elegido, que se postuló); el tercero (no ve el pedido
+//     asignado) y anon siguen sin recibirla;
 //   * nadie (ni las partes) puede leer las calificaciones: ni quién calificó ni qué respondió;
 //   * las estadísticas públicas no traen la cantidad de calificaciones.
 //
@@ -99,7 +101,7 @@ await sleep(1000);
 
 const jobId = randomUUID();
 must(await cliente.sb.rpc('create_job', {
-  p_id: jobId, p_zone: 'Barrio Fase Cinco', p_address: ADDRESS, p_price_ars: 15000,
+  p_id: jobId, p_location_lat: -35.43, p_location_lng: -60.17, p_address_street: ADDRESS, p_address_number: '1', p_zone: 'Barrio Fase Cinco', p_price_ars: 15000,
   // Hoy (hora local): se puede marcar como realizado desde el día acordado.
   p_desired_at: new Date(Date.now() + 20 * 60e3).toISOString(),
 }), 'create_job');
@@ -112,9 +114,8 @@ must(await cliente.sb.rpc('accept_application', { p_application_id: target.appli
 async function probe(sb, who) {
   return {
     contacto: await sb.rpc('get_job_contact', { p_job_id: jobId }),
-    pedido: await sb.from('jobs').select('*, applications!applications_job_id_fkey(*), job_private(*), agreement:job_agreements!job_agreements_job_id_fkey(*)').eq('id', jobId).maybeSingle(),
+    pedido: await sb.from('jobs').select('*, applications!applications_job_id_fkey(*), agreement:job_agreements!job_agreements_job_id_fkey(*)').eq('id', jobId).maybeSingle(),
     acuerdos: await sb.from('job_agreements').select('*'),
-    direccion: await sb.from('job_private').select('*'),
     privados: await sb.from('profile_private').select('*'),
     ratings: await sb.from('ratings').select('*'),
     ratingsEmbed: await sb.from('jobs').select('id, ratings(*)').eq('id', jobId),
@@ -166,13 +167,13 @@ check('El trabajo queda realizado (lo ven el cliente y el elegido)',
 
 // Datos privados
 for (const who of ['noElegido', 'tercero']) {
-  const leaks = found(who, [ADDRESS, ...Object.keys(PHONES).filter((r) => r !== who).flatMap(secrets)]);
-  check(`${who}: nunca recibe dirección, apellidos ni WhatsApp ajenos (asignado, realizado y calificado)`, leaks.length === 0, leaks.join(', '));
+  const leaks = found(who, [...(who === 'tercero' ? [ADDRESS] : []), ...Object.keys(PHONES).filter((r) => r !== who).flatMap(secrets)]);
+  check(`${who}: nunca recibe apellidos ni WhatsApp ajenos${who === 'tercero' ? ' (ni la dirección: no ve el pedido)' : ''} (asignado, realizado y calificado)`, leaks.length === 0, leaks.join(', '));
 }
 const anonLeaks = found('anon', [ADDRESS, ...Object.keys(PHONES).flatMap(secrets)]);
 check('anon: nunca recibe ningún dato privado', anonLeaks.length === 0, anonLeaks.join(', '));
-check('Realizado: el elegido sigue recibiendo dirección y WhatsApp del cliente',
-  realizado.elegido.contacto.data?.[0]?.address === ADDRESS && realizado.elegido.contacto.data?.[0]?.phone_e164 === PHONES.cliente);
+check('Realizado: el elegido sigue recibiendo el WhatsApp del cliente, y la dirección en el pedido',
+  realizado.elegido.contacto.data?.[0]?.phone_e164 === PHONES.cliente && realizado.elegido.pedido.data?.address_street === ADDRESS);
 check('Realizado: el cliente sigue recibiendo el WhatsApp del elegido', realizado.cliente.contacto.data?.[0]?.phone_e164 === PHONES.elegido);
 check('Realizado: el no elegido, el tercero y anon no reciben contacto', ['noElegido', 'tercero', 'anon'].every((w) => !!realizado[w].contacto.error && !!calificado[w].contacto.error));
 check('Realizado: el no elegido ve el pedido realizado pero sin acuerdo',
@@ -210,10 +211,10 @@ check('Realtime: el cliente recibió "trabajo_realizado"', kinds('cliente').incl
 check('Realtime: el elegido no recibe su propio "trabajo_realizado"', !kinds('elegido').includes('trabajo_realizado'));
 check('Realtime: el no elegido y el tercero no reciben "trabajo_realizado"', !kinds('noElegido').includes('trabajo_realizado') && events.tercero.length === 0);
 check('Ningún aviso revela una calificación', !Object.values(events).flat().some((n) => /rating|would_work|calific/i.test(JSON.stringify(n))));
-check('Los avisos no llevan datos privados', !Object.values(events).flat().some((n) => [ADDRESS, ...Object.keys(PHONES).flatMap(secrets)].some((s) => JSON.stringify(n).includes(s))));
+check('Los avisos no llevan datos privados', !Object.values(events).flat().some((n) => Object.keys(PHONES).flatMap(secrets).some((s) => JSON.stringify(n).includes(s))));
 
-// Control del detector: el elegido sí recibió la dirección con el trabajo realizado.
-check('Control: el detector encuentra la dirección en lo que recibió el elegido (realizado)', found('elegido', [ADDRESS], 'realizado').length > 0);
+// Control del detector: el elegido sí recibió el WhatsApp del cliente con el trabajo realizado.
+check('Control: el detector encuentra el WhatsApp del cliente en lo que recibió el elegido (realizado)', found('elegido', [PHONES.cliente], 'realizado').length > 0);
 
 for (const [u, path] of avatars) await u.sb.storage.from('avatars').remove([path]);
 for (const u of Object.values(users)) await u.sb.removeAllChannels();

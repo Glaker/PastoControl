@@ -7,7 +7,7 @@ import { useUserId } from '../../auth/AuthProvider';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobForm } from '../../jobs/JobForm';
 import { JobUnavailable, LoadFailed } from '../../jobs/JobPageParts';
-import { jobKeys, pendingCount, useJob, useJobAddress } from '../../jobs/queries';
+import { jobKeys, jobPoint, pendingCount, useJob } from '../../jobs/queries';
 import { updateJob, type JobInput } from '../../jobs/saveJob';
 
 export function EditarPedidoPage() {
@@ -17,20 +17,9 @@ export function EditarPedidoPage() {
   const queryClient = useQueryClient();
   const { data: job, isPending, error, refetch } = useJob(jobId);
   const isOwner = !!job && job.client_id === userId;
-  const address = useJobAddress(jobId, isOwner);
 
-  if (isPending || (isOwner && address.isPending)) return <FullPageLoader label="Cargando el pedido…" />;
-  if (error || address.error) {
-    return (
-      <LoadFailed
-        error={error ?? address.error}
-        onRetry={() => {
-          void refetch();
-          void address.refetch();
-        }}
-      />
-    );
-  }
+  if (isPending) return <FullPageLoader label="Cargando el pedido…" />;
+  if (error) return <LoadFailed error={error} onRetry={() => void refetch()} />;
   if (!job || !isOwner) {
     return (
       <JobUnavailable
@@ -76,10 +65,13 @@ export function EditarPedidoPage() {
         Editar pedido
       </Title>
       <JobForm
-        timeZone={job.locality.timezone}
+        locality={job.locality}
         initial={{
-          zone: job.zone,
-          address: address.data ?? '',
+          location: jobPoint(job),
+          street: job.address_street,
+          number: job.address_number ?? '',
+          between: job.address_between ?? '',
+          zone: job.zone ?? '',
           priceArs: job.price_ars,
           desiredAt: job.desired_at,
           notes: job.notes ?? '',

@@ -75,7 +75,7 @@ for (const [i, c] of cutters.entries()) {
 async function newJob() {
   const id = randomUUID();
   must(await client.sb.rpc('create_job', {
-    p_id: id, p_zone: 'Carrera', p_address: 'Pasaje Carrera 1', p_price_ars: 15000,
+    p_id: id, p_location_lat: -35.43, p_location_lng: -60.17, p_address_street: 'Pasaje Carrera', p_address_number: '1', p_zone: 'Carrera', p_price_ars: 15000,
     p_desired_at: new Date(Date.now() + 2 * 86400e3).toISOString(),
   }), 'create_job');
   return id;

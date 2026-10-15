@@ -10,7 +10,7 @@ import { JobFacts } from '../../jobs/JobFacts';
 import { BackLink, JobUnavailable, LoadFailed } from '../../jobs/JobPageParts';
 import { JobPhotos } from '../../jobs/JobPhotos';
 import { JobStatusBadge } from '../../jobs/JobStatusBadge';
-import { jobDisplayStatus, jobKeys, pendingCount, useJob, useJobAddress } from '../../jobs/queries';
+import { jobDisplayStatus, jobKeys, pendingCount, useJob } from '../../jobs/queries';
 import { applicationKeys } from '../../applications/queries';
 import { ApplicantsList } from '../../assignment/ApplicantsList';
 import { AssignedPanel } from '../../assignment/AssignedPanel';
@@ -25,7 +25,6 @@ export function PedidoDetallePage() {
   const queryClient = useQueryClient();
   const { data: job, isPending, error, refetch } = useJob(jobId);
   const isOwner = !!job && job.client_id === userId;
-  const { data: address } = useJobAddress(jobId, isOwner);
   const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -115,7 +114,7 @@ export function PedidoDetallePage() {
       )}
 
       <Card withBorder radius="md" padding="lg">
-        <JobFacts job={job} address={address ?? null} />
+        <JobFacts job={job} />
       </Card>
 
       {job.photo_paths.length > 0 && (
