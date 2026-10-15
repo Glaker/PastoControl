@@ -121,7 +121,7 @@ begin
       (35, 'B', 'B no ve la postulación de B2', format('select * from public.applications where cutter_id = %L', b2), 'count:0'),
       (36, 'B', 'B no ve los avisos de A', 'select * from public.notifications', 'count:0'),
       (37, 'A', 'A ve sus 3 avisos (B y B2 en el pedido 1, F en el 2)', 'select * from public.notifications', 'count:3'),
-      (38, 'admin', 'Ningún aviso tiene dirección, teléfono ni apellido', 'select 1 from public.notifications where payload::text ilike any (array[''%Calle Falsa%'', ''%Mitre 450%'', ''%+549%'', ''%Benítez%'', ''%Bustos%'', ''%Funes%'', ''%Álvarez%''])', 'count:0'),
+      (38, 'admin', 'Ningún aviso tiene teléfono ni apellido (la dirección sí, desde la Fase 7)', 'select 1 from public.notifications where payload::text ilike any (array[''%+549%'', ''%Benítez%'', ''%Bustos%'', ''%Funes%'', ''%Álvarez%''])', 'count:0'),
       (39, 'admin', 'Los avisos solo tienen campos de la lista blanca', 'select 1 from public.notifications where (payload - array[''zone'', ''address'', ''actor_name'', ''price_ars'', ''desired_at'', ''proposed_price_ars'', ''proposed_at'', ''tz'']) <> ''{}''::jsonb', 'count:0'),
       (40, 'B', 'B no puede insertar postulaciones directo', format('insert into public.applications (job_id, cutter_id) values (%L, %L)', j2, b), 'err:permission denied'),
       (41, 'B', 'B no puede cambiar el estado de su postulación directo', format('update public.applications set status = ''aceptada'' where cutter_id = %L', b), 'err:permission denied'),
@@ -169,7 +169,7 @@ begin
       (96, 'F', 'F no puede postularse a un pedido vencido', format('select public.apply_to_job(%L)', j1), 'err:ya no recibe'),
       (97, 'B2', 'B2 no puede quedarse con el horario publicado si ya pasó', format('select public.update_application(%s, 20000, null)', app_b2), 'err:horario publicado ya pasó'),
       (98, 'B2', 'B2 sí puede proponer un horario futuro en un pedido vencido', format('select public.update_application(%s, 20000, now() + interval ''1 day'')', app_b2), 'ok'),
-      (99, 'B', 'Lista de disponibles de B (publicados y no vencidos): solo el pedido 2', 'select * from public.jobs j where j.status = ''publicado'' and not j.is_expired', 'count:1'),
+      (99, 'B', 'Lista de disponibles de B (publicados y no vencidos): de A, solo el pedido 2', format('select * from public.jobs j where j.status = ''publicado'' and not j.is_expired and j.client_id = %L', a), 'count:1'),
 
       -- Rol de cortador
       (100, 'B', 'B no puede dejar de ser cortador con postulaciones pendientes', format(prof_b, loc, false, b || '/yo.jpg'), 'err:postulaciones activas'),

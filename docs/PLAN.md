@@ -15,7 +15,7 @@ Se actualiza al cerrar cada fase.
 | 5 | Acuerdo en tabla aparte, marcar realizado, calificaciones, estadísticas, perfil público, volver a publicar | ✅ terminada y commiteada |
 | 5b | Ajustes después de probar el deploy: un solo botón de perfil, WhatsApp neutro, «Sacar foto» / «Elegir de la galería» | ✅ terminada y commiteada |
 | 6 | Web Push: avisos al celular, «Activar avisos», instalar la app (Android e iPhone) | 🟡 implementada, esperando revisión y prueba en el celular |
-| 7 | Dirección visible, ubicación en el mapa y trabajos cercanos | 🟡 implementada; `0025` (destructivo) esperando aprobación |
+| 7 | Dirección visible, ubicación en el mapa y trabajos cercanos | 🟡 implementada, deployada y verificada; esperando revisión |
 
 Deploy: https://pastocontrol.vercel.app (Vercel). El ciclo completo se probó en celular y PC.
 
@@ -53,7 +53,9 @@ operada con el MCP (limitado a este proyecto).
   se espera su respuesta: nunca se saltea ni se deja como pendiente. (En las Fases 2 y 3 el MCP las
   rechazaba con «Invalid or expired requestState»; se arregló reconectando el servidor de Supabase
   desde `/mcp` en Claude Code. Si vuelve a pasar, reconectar y probar con
-  `delete from public.localities where false`.)
+  `delete from public.localities where false`.) En la Fase 7 esa prueba pasó pero el SQL destructivo
+  real se siguió rechazando hasta que el dueño estuvo presente para aprobar la confirmación: no sirve
+  como garantía. Si falla, frenar y pedirle al dueño que esté para aprobar y reintentar.
 - **Lecturas:** por RLS (`grant select` + política). Los datos privados viven en tablas aparte que
   solo lee el dueño, para que ni un `select *` ni un embed los filtren:
   - `profile_private`: apellido, teléfono y ubicación base del cortador (Fase 7).
@@ -517,7 +519,7 @@ Verificación (14/10/2026):
 - `tsc -b` y build sin errores. Advisors: 0029 en las 17 RPCs (por diseño), `push_subscriptions` y
   `ratings` con RLS sin políticas (a propósito), «leaked password protection», índice sin uso.
 
-### Fase 7 · Dirección visible, mapa y trabajos cercanos (implementada; falta aprobar y correr `0025`)
+### Fase 7 · Dirección visible, mapa y trabajos cercanos (implementada, deployada y verificada; esperando revisión)
 Pedido del dueño después de probar el MVP en el pueblo: la dirección no necesita ser privada y los
 cortadores tienen que ver qué trabajos tienen más cerca.
 
@@ -535,7 +537,9 @@ cortadores tienen que ver qué trabajos tienen más cerca.
 - [x] «Cómo llegar» en el detalle del trabajo (para el cortador, publicado o si lo eligieron).
 - [x] Volver a publicar copia pin y dirección (de los pedidos viejos, sin pin, copia la dirección y pide el pin).
 - [x] Avisos: llevan `address` (calle y número) y el texto la usa en lugar de la zona (también `send-push`).
-- [ ] `0025` (destructivo): borrar `job_private` y las firmas viejas. **Esperando aprobación del dueño.**
+- [x] `0025` (destructivo, aprobado por el dueño el 15/10/2026): `job_private` y las firmas viejas borradas.
+  Orden pedido por el dueño para no romper la app: primero se confirmó que el front nuevo no depende de
+  0025 (anda igual con 0024 sola y después de 0025), el dueño commiteó y deployó, y recién ahí se corrió 0025.
 
 Front: `src/lib/geo.ts`, `src/map/` (LeafletMaps, lazy, LocationField, useCurrentPosition, map.css),
 `src/profile/BaseLocationCard.tsx`; cambios en JobForm, JobCard, JobFacts, queries, saveJob, TrabajosPage,
@@ -558,6 +562,46 @@ Decisiones de la Fase 7:
   vista se recuerdan en el dispositivo (localStorage).
 - Cambiar de localidad borra la ubicación base (quedaría fuera del radio).
 - Los tiles de OSM no pasan por el service worker (solo se precachean los archivos de la app).
+
+Verificación (15/10/2026, con el esquema final, después de 0025):
+- SQL: `fase1` 35/35, `fase2` 97/97, `fase3` 95/95, `fase4` 82/82, `fase5` 61/61, `fase6` 50/50,
+  `fase7_seguridad.sql` 73/73 (pin dentro/fuera del radio, NaN/infinito, calle/número/entre calles/zona,
+  editar, visibilidad de la dirección para cortadores de la localidad y postulados, nada para el tercero
+  sin rol de cortador, otra localidad, sin perfil y anon; teléfono, apellido y ubicación base nunca para
+  otros; ubicación base fuera del radio; se borra al cambiar de localidad; `get_job_contact` sin dirección;
+  avisos con `address` y sin datos privados; estructura). Total 493/493. Sin rastro después.
+  Ajustes a las pruebas viejas: los casos que afirmaban que la dirección era privada ahora verifican que
+  la ve el cortador (y que el teléfono y el apellido no); los avisos ya pueden llevar la dirección; dos
+  casos (fase2 #40, fase3 #99) contaban todos los pedidos visibles y ahora solo los de la prueba, para no
+  depender de los datos reales de la base.
+- Red (sesiones reales): `verificar-red-fase7.mjs` 27/27 (123 respuestas), fase 2 21/21, fase 3 31/31,
+  fase 4 27/27, fase 5 29/29; prueba de carrera 6 escenarios × 10 rondas, 0 invariantes rotas (en todos
+  hubo los dos desenlaces).
+- Front contra la base con 0024 sola (antes del deploy): publicar desde el navegador y `update_job` con los
+  parámetros del front (con y sin opcionales) funcionaron con las dos firmas de las RPCs conviviendo.
+- Navegador a 360 px (iframe de 360 px: Chrome no achica la ventana a menos de 500 px), con el GPS
+  simulado: publicar con «Usar mi ubicación actual» y con el pin arrastrado y tocando el mapa (en la base
+  quedó el pin ajustado); errores sin pin, GPS fuera de la localidad, GPS impreciso (± 140 m) y permiso
+  denegado; Trabajos «Desde mi casa» y «Desde mi ubicación actual» con el orden y las distancias correctas
+  («a 200 m» … «a 4,8 km»); vista de mapa con precios de 44 px, tocar uno resalta el pin y muestra la tarjeta
+  (con margen para no quedar bajo la barra); detalle con «Cómo llegar» (`/maps/dir/?api=1&destination=…`);
+  ubicación base desde el perfil. Sin scroll horizontal. Corregido en la prueba: el botón del GPS se cortaba.
+  Pantalla táctil simulada (`pointer: coarse`): el mapa no se arrastra con un dedo (`touch-action: pan-x
+  pan-y`), el pin sí (`touch-action: none`), botones + y − de 44 px. Falta la prueba con un celular real (dueño).
+- `tsc -b` y build sin errores; Leaflet en su propio chunk (`LeafletMaps`, 45 kB gzip + 7 kB de CSS), fuera
+  del bundle principal. `database.types.ts` regenerado (igual al escrito a mano con el esquema final).
+- `send-push` redeployado (texto con la dirección), con el mismo contenido que el archivo del repo.
+- Advisors: 0029 en las 18 RPCs (por diseño; se sumó `set_my_base_location`), `push_subscriptions` y
+  `ratings` con RLS sin políticas (a propósito), «leaked password protection», índice sin uso.
+- Limpieza: 32 usuarios de prueba borrados por el MCP (el único archivo que quedaba, un avatar, antes por
+  la API). En la base quedan solo los datos reales; sin archivos ni dispositivos huérfanos.
+- Calendario de «Día» (de la Fase 2, arreglado a pedido del dueño): a 360 px el modal dejaba 292 px para
+  7 días de 48 px y tenía scroll horizontal (el domingo quedaba fuera). Ahora el modal tiene menos margen
+  y relleno, ancho fijo de 400 px (en el celular lo limita la pantalla) y las celdas se reparten el ancho
+  (`src/jobs/schedule.tsx` + `calendar.module.css`). Medido en días, meses y años, a 360 y 1200 px: sin
+  scroll; celdas de 46 × 48 (días), 100 × 48 (meses) y 108 × 48 (años) a 360. Elegir un día sigue andando
+  y los días fuera de rango siguen deshabilitados. Se midió con una página temporal que solo muestra el
+  campo (sin usuarios de prueba) y se borró después.
 
 ### Pendientes futuros (sin fase asignada)
 - Limpieza de fotos huérfanas en `job-photos`: archivos subidos cuyo `create_job` nunca se completó

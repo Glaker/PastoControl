@@ -2,6 +2,7 @@ import { Select, SimpleGrid } from '@mantine/core';
 import { DatePickerInput } from '@mantine/dates';
 import type { ReactNode } from 'react';
 import dayjs from '../lib/dayjs';
+import calendarClasses from './calendar.module.css';
 
 // Mismos límites que las RPCs (create_job, apply_to_job, update_application).
 export const MIN_PRICE = 1000;
@@ -43,6 +44,22 @@ export function validateWhen(date: string | null, time: string | null, timeZone:
   return null;
 }
 
+// El calendario ocupa todo el ancho del modal en vez de un ancho fijo de 7 × 48 px.
+const CALENDAR_STYLES = {
+  levelsGroup: { width: '100%' },
+  calendarHeader: { maxWidth: 'none' },
+  month: { width: '100%' },
+  monthCell: { padding: 0 },
+  day: { width: '100%', height: 48 },
+  // Al tocar el mes se ven los meses (y después los años): mismo criterio.
+  monthsList: { width: '100%' },
+  monthsListCell: { padding: 0 },
+  monthsListControl: { width: '100%' },
+  yearsList: { width: '100%' },
+  yearsListCell: { padding: 0 },
+  yearsListControl: { width: '100%' },
+} as const;
+
 type DayTimeFieldsProps = {
   timeZone: string;
   date: string | null;
@@ -83,6 +100,12 @@ export function DayTimeFields({
         placeholder="Elegí el día"
         withAsterisk
         dropdownType="modal"
+        // A 360 px el modal (margen 5vw + relleno 16) dejaba 292 px para 7 días de 48 px: scroll
+        // horizontal. Menos margen y relleno, ancho fijo (en el celular lo limita la pantalla) y las
+        // celdas se reparten ese ancho (46 px a 360, alto 48), en días, meses y años.
+        modalProps={{ xOffset: 8, padding: 'xs', size: 400 }}
+        styles={CALENDAR_STYLES}
+        classNames={{ levelsGroup: calendarClasses.levelsGroup }}
         valueFormat="dddd D [de] MMMM"
         minDate={now.format('YYYY-MM-DD')}
         maxDate={now.add(MAX_DAYS_AHEAD, 'day').format('YYYY-MM-DD')}

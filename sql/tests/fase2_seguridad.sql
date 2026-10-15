@@ -117,7 +117,7 @@ begin
       (35, 'A', 'A no puede borrar su pedido directo', format('delete from public.jobs where id = %L', j1), 'err:permission denied'),
 
       -- B, cortador de la misma localidad
-      (40, 'B', 'B ve los 2 pedidos disponibles', 'select * from public.jobs', 'count:2'),
+      (40, 'B', 'B ve los 2 pedidos disponibles de A', format('select * from public.jobs where client_id = %L', a), 'count:2'),
       (41, 'B', 'B ve el nombre visible del cliente por embed', format('select 1 from public.jobs j join public.profiles p on p.id = j.client_id where j.id = %L and p.first_name = ''Ana'' and p.last_initial = ''Á''', j1), 'count:1'),
       (42, 'B', 'B ve la dirección y el pin del pedido 1 (dirección visible)', format('select 1 from public.jobs where id = %L and address_street = ''Calle Falsa'' and address_number = ''123'' and location_lat = -35.4324 and location_lng = -60.1716', j1), 'count:1'),
       (43, 'B', 'B no ve los datos privados de nadie más (teléfono, apellido, ubicación base)', format('select * from public.profile_private where user_id <> %L', b), 'count:0'),

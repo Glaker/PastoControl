@@ -1,0 +1,6 @@
+/* El nivel visible del calendario (días, meses o años) ocupa todo el ancho del modal. Es un hijo flex
+   de levelsGroup sin clase propia en el Styles API, por eso se lo toma desde acá. */
+.levelsGroup > * {
+  flex: 1;
+  min-width: 0;
+}
