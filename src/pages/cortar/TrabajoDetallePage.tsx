@@ -58,6 +58,9 @@ export function TrabajoDetallePage() {
   }
 
   const fromApplications = !!application.data;
+  // Si me eligieron, el contacto (con "Ver su perfil") está en AssignedPanel: no se repite el botón acá.
+  const showsContact =
+    (job.status === 'asignado' || job.status === 'realizado') && application.data?.status === 'aceptada';
 
   return (
     <Stack gap="lg">
@@ -84,14 +87,16 @@ export function TrabajoDetallePage() {
       <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
           <ClientLine client={job.client} size={48} />
-          <Button
-            component={Link}
-            to={`/persona/${job.client.id}`}
-            variant="default"
-            leftSection={<IconUserCircle size={20} aria-hidden />}
-          >
-            Ver el perfil de {job.client.first_name}
-          </Button>
+          {!showsContact && (
+            <Button
+              component={Link}
+              to={`/persona/${job.client.id}`}
+              variant="default"
+              leftSection={<IconUserCircle size={20} aria-hidden />}
+            >
+              Ver el perfil de {job.client.first_name}
+            </Button>
+          )}
           <JobFacts job={job} showAgreed={application.data?.status === 'aceptada'} />
         </Stack>
       </Card>
@@ -105,7 +110,7 @@ export function TrabajoDetallePage() {
         </Stack>
       )}
 
-      {!((job.status === 'asignado' || job.status === 'realizado') && application.data?.status === 'aceptada') && (
+      {!showsContact && (
         <Alert color="blue" icon={<IconLock aria-hidden />}>
           La dirección exacta y el WhatsApp se comparten cuando el cliente acepta tu postulación.
         </Alert>

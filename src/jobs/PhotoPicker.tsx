@@ -1,5 +1,6 @@
-import { Button, FileButton, SimpleGrid, Skeleton, Stack, Text } from '@mantine/core';
-import { IconCamera, IconTrash } from '@tabler/icons-react';
+import { Button, SimpleGrid, Skeleton, Stack, Text } from '@mantine/core';
+import { IconTrash } from '@tabler/icons-react';
+import { PhotoSourceButtons } from '../components/PhotoSourceButtons';
 import { useEffect, useState } from 'react';
 import { ImageReadError, resizeImage } from '../lib/images';
 import { useJobPhotoUrls } from './queries';
@@ -81,19 +82,21 @@ export function PhotoPicker({ photos, onChange, disabled }: Props) {
       )}
 
       {remaining > 0 && (
-        <FileButton onChange={(files) => void onPick(files)} accept="image/*" multiple>
-          {(props) => (
-            <Button
-              {...props}
-              variant="light"
-              loading={processing}
-              disabled={disabled}
-              leftSection={<IconCamera size={20} aria-hidden />}
-            >
-              {photos.length ? `Agregar fotos (${photos.length} de ${MAX_JOB_PHOTOS})` : 'Agregar fotos'}
-            </Button>
+        <>
+          {photos.length > 0 && (
+            <Text size="sm" c="dimmed">
+              Agregar más ({photos.length} de {MAX_JOB_PHOTOS}):
+            </Text>
           )}
-        </FileButton>
+          <PhotoSourceButtons
+            camera="environment"
+            multiple
+            loading={processing}
+            disabled={disabled}
+            desktopLabel="Agregar fotos"
+            onPick={(files) => void onPick(files)}
+          />
+        </>
       )}
       {error && (
         <Text size="sm" c="red.8" role="alert">

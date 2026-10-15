@@ -8,7 +8,6 @@ import dayjs from '../lib/dayjs';
 import { friendlyError } from '../lib/errors';
 import { jobDisplayStatus, jobKeys, type Job } from '../jobs/queries';
 import { AssignedPanel } from '../assignment/AssignedPanel';
-import { displayName, useMyProfile } from '../profile/queries';
 import { ApplicationForm } from './ApplicationForm';
 import { ApplicationStatusBadge, ProposalSummary } from './ApplicationParts';
 import { applicationKeys, withdrawApplication, type Application } from './queries';
@@ -18,7 +17,6 @@ type Props = { job: Job; application: Application | null };
 /** Sección del detalle del trabajo para el cortador: postularse, ver, editar o retirar su postulación. */
 export function ApplicationPanel({ job, application }: Props) {
   const queryClient = useQueryClient();
-  const { data: profile } = useMyProfile();
   const [editing, setEditing] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +106,7 @@ export function ApplicationPanel({ job, application }: Props) {
             ¡Buen trabajo! Si querés, calificá a {job.client.first_name}.
           </Alert>
         )}
-        {profile && <AssignedPanel job={job} viewer="cortador" myName={displayName(profile)} />}
+        <AssignedPanel job={job} viewer="cortador" />
       </Stack>
     );
   }

@@ -1,5 +1,6 @@
-import { Avatar, Button, FileButton, Group, Loader, Stack, Text } from '@mantine/core';
-import { IconCamera, IconTrash } from '@tabler/icons-react';
+import { Avatar, Button, Loader, Stack, Text } from '@mantine/core';
+import { IconTrash } from '@tabler/icons-react';
+import { PhotoSourceButtons } from '../components/PhotoSourceButtons';
 import { useEffect, useState } from 'react';
 import { ImageReadError, resizeImage } from '../lib/images';
 import { useAvatarUrl } from './queries';
@@ -32,7 +33,7 @@ export function AvatarPicker({ currentPath, newAvatar, removed, required, initia
     return () => URL.revokeObjectURL(url);
   }, [newAvatar]);
 
-  const onPick = async (file: File | null) => {
+  const onPick = async ([file]: File[]) => {
     if (!file) return;
     setReadError(null);
     setProcessing(true);
@@ -58,14 +59,13 @@ export function AvatarPicker({ currentPath, newAvatar, removed, required, initia
       <Text size="sm" fw={600}>
         Foto de perfil {required ? '(obligatoria)' : '(opcional)'}
       </Text>
-      <Group gap="sm" justify="center">
-        <FileButton onChange={onPick} accept="image/*">
-          {(props) => (
-            <Button {...props} variant="light" loading={processing} leftSection={<IconCamera size={20} aria-hidden />}>
-              {hasPhoto ? 'Cambiar foto' : 'Elegir foto'}
-            </Button>
-          )}
-        </FileButton>
+      <Stack gap="xs" w="100%" maw={360}>
+        <PhotoSourceButtons
+          camera="user"
+          loading={processing}
+          desktopLabel={hasPhoto ? 'Cambiar foto' : 'Elegir foto'}
+          onPick={(files) => void onPick(files)}
+        />
         {hasPhoto && !required && (
           <Button
             variant="subtle"
@@ -76,7 +76,7 @@ export function AvatarPicker({ currentPath, newAvatar, removed, required, initia
             Quitar foto
           </Button>
         )}
-      </Group>
+      </Stack>
       <Text size="sm" ta="center" c={message ? 'red.8' : 'dimmed'} role={message ? 'alert' : undefined}>
         {message ??
           (required

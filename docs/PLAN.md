@@ -12,10 +12,11 @@ Se actualiza al cerrar cada fase.
 | 2 | Trabajos: jobs, job_private, job-photos, publicar/editar/cancelar, listas y detalles | ✅ terminada y commiteada |
 | 3 | Postulaciones y notificaciones (bandeja + contador) | ✅ terminada y commiteada |
 | 4 | Aceptación atómica, postulantes, contacto + WhatsApp, cancelaciones después de asignar, prueba de carrera | ✅ terminada y commiteada |
-| 5 | Acuerdo en tabla aparte, marcar realizado, calificaciones, estadísticas, perfil público, volver a publicar | 🟡 implementada, esperando revisión |
+| 5 | Acuerdo en tabla aparte, marcar realizado, calificaciones, estadísticas, perfil público, volver a publicar | ✅ terminada y commiteada |
+| 5b | Ajustes después de probar el deploy: un solo botón de perfil, WhatsApp neutro, «Sacar foto» / «Elegir de la galería» | 🟡 implementada, esperando revisión |
 | 6 | Web Push | ⏳ pendiente |
 
-Pendiente del dueño del proyecto (no bloquea fases): configurar el SMTP propio en Supabase.
+Deploy: https://pastocontrol.vercel.app (Vercel). El ciclo completo se probó en celular y PC.
 
 ## Producto
 
@@ -337,7 +338,7 @@ Verificación (14/10/2026):
 - Limpieza: 22 usuarios de prueba borrados por el MCP con aprobación del dueño (sus archivos, antes
   por la API). En la base queda solo el usuario real.
 
-### Fase 5 · Cierre (implementada, esperando revisión)
+### Fase 5 · Cierre ✅ (aprobada y commiteada)
 - [x] Acuerdo fuera de `jobs` (decisión del dueño): `job_agreements` (0018), columnas viejas borradas
   y RPCs adaptadas (0019, destructivo, aprobado), autor de la cancelación de un asignado (0020).
   Después del cambio pasaron de nuevo todas las pruebas SQL de las fases 1–4, las de red de las
@@ -391,6 +392,15 @@ Verificación (14/10/2026):
 - Limpieza: 33 usuarios de prueba borrados por el MCP (sus archivos, antes por la API). En la base
   queda solo el usuario real.
 
+### Ajustes después de la Fase 5 (implementados, esperando revisión)
+- Perfil de la contraparte: un solo botón, «Ver su perfil», en el bloque de contacto. El cortador elegido
+  ya no ve además «Ver el perfil de…» en la tarjeta del cliente (los no elegidos y los postulados sí).
+- WhatsApp: un solo mensaje inicial para las dos partes y para asignado o realizado:
+  «Hola <nombre>, te escribo por el corte de pasto de PastoControl del <sábado 18 de octubre>.»
+- Fotos (perfil y pedido): `src/components/PhotoSourceButtons.tsx` con «Sacar foto» (`capture`: cámara
+  frontal para el perfil, trasera para el terreno) y «Elegir de la galería». En pantallas no táctiles
+  (`pointer: coarse` falso) el navegador ignora `capture`, así que se muestra un solo botón «Elegir foto».
+
 ### Fase 6 · Web Push
 - VAPID, `push_subscriptions`, Edge Function al insertar en `notifications`, instrucciones de instalación en iOS.
 
@@ -401,6 +411,14 @@ Verificación (14/10/2026):
   tarea periódica (Edge Function con cron) que borre por la API de Storage los objetos de más de 24 h
   cuya carpeta no corresponde a ningún `jobs.id` o que no estén en `photo_paths`.
 - Retención de `notifications` (borrar o archivar las leídas viejas).
+- Recordatorio «¿Ya cortaron?»: el día después de la fecha acordada, si el trabajo sigue asignado (nadie
+  lo marcó realizado), aviso a las dos partes para que lo marquen. Necesita un proceso programado
+  (pg_cron o Edge Function con cron) que inserte el aviso con `private.notify` y una dedupe_key por trabajo.
+- Dirección: reemplazar la zona por calle, entre qué calles y número, más la selección de la ubicación
+  exacta en Google Maps. Se plantea aparte.
+- Mejorar la interfaz (hoy muy simple). Va al final, cuando el flujo esté cerrado.
+- Antes de abrir a usuarios reales: SMTP propio en Supabase, borrar la cuenta, política de privacidad y
+  términos, y pasar el SQL de `sql/` a migraciones versionadas con la CLI.
 
 ## Verificación al cerrar cada fase
 - Pruebas SQL con varios usuarios (dueño, cortador, tercero y anon) sobre cada política y RPC nueva.

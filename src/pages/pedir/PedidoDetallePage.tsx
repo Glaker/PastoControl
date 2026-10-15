@@ -14,7 +14,6 @@ import { jobDisplayStatus, jobKeys, pendingCount, useJob, useJobAddress } from '
 import { applicationKeys } from '../../applications/queries';
 import { ApplicantsList } from '../../assignment/ApplicantsList';
 import { AssignedPanel } from '../../assignment/AssignedPanel';
-import { displayName, useMyProfile } from '../../profile/queries';
 import { cancelJob } from '../../jobs/saveJob';
 import { confirmAction } from '../../lib/confirm';
 import { friendlyError } from '../../lib/errors';
@@ -27,7 +26,6 @@ export function PedidoDetallePage() {
   const { data: job, isPending, error, refetch } = useJob(jobId);
   const isOwner = !!job && job.client_id === userId;
   const { data: address } = useJobAddress(jobId, isOwner);
-  const { data: profile } = useMyProfile();
   const [cancelling, setCancelling] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -131,9 +129,7 @@ export function PedidoDetallePage() {
 
       {isPublished && <ApplicantsList job={job} />}
 
-      {(job.status === 'asignado' || job.status === 'realizado') && profile && (
-        <AssignedPanel job={job} viewer="cliente" myName={displayName(profile)} />
-      )}
+      {(job.status === 'asignado' || job.status === 'realizado') && <AssignedPanel job={job} viewer="cliente" />}
 
       {(job.status === 'cancelado' || job.status === 'realizado') && (
         <Button

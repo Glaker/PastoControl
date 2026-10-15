@@ -17,6 +17,11 @@ export function formatDateTime(iso: string, timeZone: string): string {
   return `${d.format('ddd D/M')} · ${d.format('HH:mm')} h`;
 }
 
+/** "sábado 18 de octubre", en la zona horaria de la localidad. */
+export function formatDateLong(iso: string, timeZone: string): string {
+  return dayjs(iso).tz(timeZone).format('dddd D [de] MMMM');
+}
+
 /** "sábado 18 de octubre · 16:00 h", en la zona horaria de la localidad. */
 export function formatDateTimeLong(iso: string, timeZone: string): string {
   const d = dayjs(iso).tz(timeZone);

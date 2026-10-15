@@ -7,7 +7,7 @@ import { Link } from 'react-router';
 import { applicationKeys } from '../applications/queries';
 import { confirmAction } from '../lib/confirm';
 import { friendlyError } from '../lib/errors';
-import { formatDateTimeLong } from '../lib/format';
+import { formatDateLong } from '../lib/format';
 import { formatPhone, whatsappLink } from '../lib/phone';
 import { jobKeys, type Job } from '../jobs/queries';
 import { cancelJob } from '../jobs/saveJob';
@@ -18,8 +18,6 @@ type Props = {
   job: Job;
   /** Quién mira: el cliente (dueño) o el cortador aceptado. */
   viewer: 'cliente' | 'cortador';
-  /** Nombre visible propio, para el mensaje inicial de WhatsApp. */
-  myName: string;
 };
 
 /**
@@ -27,7 +25,7 @@ type Props = {
  * dos partes) con botón de WhatsApp. Asignado: "Marcar como realizado" (desde el día acordado) y
  * "Cancelar trabajo" separado y con confirmación. Realizado: calificar a la otra parte.
  */
-export function AssignedPanel({ job, viewer, myName }: Props) {
+export function AssignedPanel({ job, viewer }: Props) {
   const queryClient = useQueryClient();
   const active = job.status === 'asignado' || job.status === 'realizado';
   const { data: contact, isPending, error, refetch } = useJobContact(job.id, active);
@@ -37,14 +35,10 @@ export function AssignedPanel({ job, viewer, myName }: Props) {
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   const counterpartName = contact ? `${contact.first_name} ${contact.last_name}` : null;
-  const greeting =
-    viewer === 'cliente'
-      ? `Hola ${contact?.first_name ?? ''}, soy ${myName} de PastoControl. Te elegí para cortar el pasto en ${job.zone} el ${
-          contact ? formatDateTimeLong(contact.agreed_at, job.locality.timezone) : ''
-        }.`
-      : `Hola ${contact?.first_name ?? ''}, soy ${myName} de PastoControl. Gracias por elegirme para cortar el pasto el ${
-          contact ? formatDateTimeLong(contact.agreed_at, job.locality.timezone) : ''
-        }.`;
+  // Mensaje inicial neutro: sirve igual con el trabajo asignado o realizado, y para las dos partes.
+  const greeting = contact
+    ? `Hola ${contact.first_name}, te escribo por el corte de pasto de PastoControl del ${formatDateLong(contact.agreed_at, job.locality.timezone)}.`
+    : '';
 
   const onCancel = async () => {
     const ok = await confirmAction({
