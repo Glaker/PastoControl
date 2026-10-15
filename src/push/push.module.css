@@ -1,0 +1,65 @@
+/* Pasos numerados para instalar en el iPhone. */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-xs);
+}
+
+/* Dibujo de cada paso: ancho completo hasta 320 px, sin scroll horizontal. */
+.drawing {
+  margin-left: calc(32px + var(--mantine-spacing-sm));
+  max-width: 320px;
+}
+
+.drawing svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.svgPanel {
+  fill: var(--mantine-color-gray-1);
+  stroke: var(--mantine-color-gray-4);
+  stroke-width: 1.5;
+}
+
+.svgField {
+  fill: #fff;
+  stroke: var(--mantine-color-gray-3);
+  stroke-width: 1;
+}
+
+.svgIcon {
+  fill: none;
+  stroke: var(--mantine-color-gray-7);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.svgIconFaint {
+  composes: svgIcon;
+  stroke: var(--mantine-color-gray-4);
+}
+
+.svgSmall {
+  font-size: 11px;
+  fill: var(--mantine-color-gray-7);
+}
+
+.svgText {
+  font-size: 13px;
+  fill: var(--mantine-color-gray-9);
+}
+
+.svgTextStrong {
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--mantine-color-gray-9);
+}

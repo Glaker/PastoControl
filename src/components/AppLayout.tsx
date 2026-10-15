@@ -3,7 +3,11 @@ import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react
 import { IconClipboardList, IconScissors } from '@tabler/icons-react';
 import { MODES, modeFromPath, type Mode, type NavItem } from '../app/modes';
 import { useCurrentMode } from '../app/useCurrentMode';
+import { useEffect } from 'react';
+import { useUserId } from '../auth/AuthProvider';
 import { useNotificationsLive, useUnreadCount } from '../notifications/queries';
+import { DevicePrompts } from '../push/DevicePrompts';
+import { startPushSync } from '../push/pushStore';
 import classes from './AppLayout.module.css';
 
 const BAR_HEIGHT = 56;
@@ -20,6 +24,13 @@ export function AppLayout() {
   // Contador de avisos sin leer: Realtime + al volver la app al frente.
   useNotificationsLive();
   const unread = useUnreadCount().data ?? 0;
+  // Push: con el permiso ya dado, la suscripción de este dispositivo queda guardada para esta cuenta.
+  const userId = useUserId();
+  useEffect(() => {
+    startPushSync(userId);
+  }, [userId]);
+  // Carteles de "Activar avisos" / "Instalar" solo en las pantallas principales, no en cada pantalla.
+  const showDevicePrompts = pathname === MODES.pedir.home || pathname === MODES.cortar.home || pathname === '/avisos';
 
   // Una ruta de un modo que el usuario no tiene (ej.: /cortar sin perfil de cortador).
   const pathMode = modeFromPath(pathname);
@@ -45,6 +56,7 @@ export function AppLayout() {
 
       <AppShell.Main className={classes.main}>
         <Container size="sm" px={0}>
+          {showDevicePrompts && <DevicePrompts />}
           <Outlet />
         </Container>
       </AppShell.Main>

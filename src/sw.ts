@@ -22,3 +22,50 @@ self.addEventListener('message', (event) => {
 });
 
 clientsClaim();
+
+// ——— Web Push (Fase 6) ———
+// La Edge Function send-push manda { title, body, url, tag } (solo campos públicos del aviso).
+
+type PushMessage = { title?: string; body?: string; url?: string; tag?: string };
+
+/** Solo rutas de la app ("/pedir/pedido/…"): nunca una URL externa que venga en el mensaje. */
+function appPath(url: unknown): string {
+  return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//') ? url : '/avisos';
+}
+
+self.addEventListener('push', (event) => {
+  let data: PushMessage = {};
+  try {
+    data = (event.data?.json() as PushMessage | undefined) ?? {};
+  } catch {
+    // Mensaje sin JSON: se muestra el texto genérico.
+  }
+  // Siempre se muestra una notificación: Safari y Chrome dan de baja los push que no muestran nada.
+  event.waitUntil(
+    self.registration.showNotification(data.title ?? 'PastoControl', {
+      body: data.body ?? 'Tenés un aviso nuevo.',
+      icon: '/pwa-192x192.png',
+      tag: data.tag,
+      lang: 'es-AR',
+      data: { url: appPath(data.url) },
+    }),
+  );
+});
+
+// Tocar la notificación: si la app está abierta, la trae al frente y navega ahí; si no, la abre.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const path = appPath((event.notification.data as { url?: unknown } | null)?.url);
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+      if (open) {
+        await open.focus();
+        open.postMessage({ type: 'NAVIGATE', path });
+        return;
+      }
+      await self.clients.openWindow(path);
+    })(),
+  );
+});

@@ -13,8 +13,8 @@ Se actualiza al cerrar cada fase.
 | 3 | Postulaciones y notificaciones (bandeja + contador) | ✅ terminada y commiteada |
 | 4 | Aceptación atómica, postulantes, contacto + WhatsApp, cancelaciones después de asignar, prueba de carrera | ✅ terminada y commiteada |
 | 5 | Acuerdo en tabla aparte, marcar realizado, calificaciones, estadísticas, perfil público, volver a publicar | ✅ terminada y commiteada |
-| 5b | Ajustes después de probar el deploy: un solo botón de perfil, WhatsApp neutro, «Sacar foto» / «Elegir de la galería» | 🟡 implementada, esperando revisión |
-| 6 | Web Push | ⏳ pendiente |
+| 5b | Ajustes después de probar el deploy: un solo botón de perfil, WhatsApp neutro, «Sacar foto» / «Elegir de la galería» | ✅ terminada y commiteada |
+| 6 | Web Push: avisos al celular, «Activar avisos», instalar la app (Android e iPhone) | 🟡 implementada, esperando revisión y prueba en el celular |
 
 Deploy: https://pastocontrol.vercel.app (Vercel). El ciclo completo se probó en celular y PC.
 
@@ -61,6 +61,12 @@ operada con el MCP (limitado a este proyecto).
   en rioplatense; `src/lib/errors.ts` los muestra tal cual.
 - `src/lib/database.types.ts` se regenera con `generate_typescript_types` en cada fase que cambia el
   esquema (se conserva el comentario de cabecera).
+
+### Edge Functions
+- Código en `supabase/functions/<nombre>/index.ts` (la estructura de la CLI), deploy con
+  `deploy_edge_function` del MCP. Lo deployado tiene que ser idéntico al archivo del repo.
+- Secretos (`VAPID_PRIVATE_KEY`, `PUSH_WEBHOOK_SECRET`): los carga el dueño en Supabase → Edge Functions → Secrets. Nunca en el
+  repo, en el front ni en archivos del proyecto.
 
 ### Datos personales
 - Nombre visible: nombre + inicial del apellido («Ana Á.») hasta la aceptación. Nombre completo y
@@ -131,7 +137,8 @@ operada con el MCP (limitado a este proyecto).
   - nunca la cantidad de calificaciones.
 - **Notificaciones:** se insertan en la misma transacción que el cambio de estado, con `dedupe_key`
   única por destinatario y `on conflict do nothing`. El payload nunca lleva datos privados. Bandeja en
-  `/avisos`, contador de no leídas por Realtime que también se refresca al volver al frente. Web Push en la Fase 6.
+  `/avisos`, contador de no leídas por Realtime que también se refresca al volver al frente. Web Push
+  (Fase 6): cada aviso insertado sale también como notificación a los dispositivos del destinatario.
 - **Zona:** texto libre por ahora.
 - Al publicar, un aviso pide «no pongas la dirección en la nota ni en las fotos».
 - **Mails:** «Confirm email» desactivado para la beta. SMTP propio pendiente (lo configura el dueño).
@@ -195,8 +202,12 @@ operada con el MCP (limitado a este proyecto).
   RLS sin políticas y sin grants: nadie las lee, ni las partes. Solo se usan dentro de
   `private.profile_stats`.
 
-### Planeado
-- `push_subscriptions` (Fase 6): user_id, endpoint, p256dh, auth, created_at.
+- `push_subscriptions` (0022): id, user_id → profiles (cascade), endpoint (único; solo servicios de push
+  conocidos: FCM, Mozilla, Apple, Windows — `private.is_push_endpoint`), p256dh, auth, created_at,
+  updated_at. RLS sin políticas y sin grants: nadie la lee por la API (ni el dueño). Se escribe con
+  `save_push_subscription` / `delete_push_subscription`; la lee la Edge Function `send-push` con la clave
+  de servicio. Hasta 10 dispositivos por persona.
+- `notifications.pushed_at` (0022): cuándo `send-push` reclamó el aviso (sale una sola vez).
 
 ## RPCs
 
@@ -215,7 +226,8 @@ operada con el MCP (limitado a este proyecto).
 | `rate_job(p_job_id, p_would_work_again)` | 5 | Una calificación por parte, con el trabajo realizado. No se puede cambiar. |
 | `has_rated_job(p_job_id)` | 5 | Si el que llama ya calificó (sin decir qué puso). |
 | `get_profile_stats(p_user_id)` | 5 | done_as_cutter, done_as_client y yes_pct (null con menos de 5; lote semanal; redondeado a la decena). Nunca la cantidad. |
-| `save_push_subscription` / `delete_push_subscription` | 6 | Web Push. |
+| `save_push_subscription(p_endpoint, p_p256dh, p_auth)` | 6 | Guarda o actualiza el dispositivo del que llama (requiere perfil). Si el endpoint era de otra cuenta, pasa a la actual (el endpoint es del dispositivo). Valida servicio de push y formato de claves. Deja los 10 más recientes. |
+| `delete_push_subscription(p_endpoint)` | 6 | Saca un dispositivo propio (desactivar avisos o cerrar sesión). Devuelve si había algo. |
 
 ## Fases
 
@@ -392,7 +404,7 @@ Verificación (14/10/2026):
 - Limpieza: 33 usuarios de prueba borrados por el MCP (sus archivos, antes por la API). En la base
   queda solo el usuario real.
 
-### Ajustes después de la Fase 5 (implementados, esperando revisión)
+### Ajustes después de la Fase 5 ✅ (aprobados y commiteados)
 - Perfil de la contraparte: un solo botón, «Ver su perfil», en el bloque de contacto. El cortador elegido
   ya no ve además «Ver el perfil de…» en la tarjeta del cliente (los no elegidos y los postulados sí).
 - WhatsApp: un solo mensaje inicial para las dos partes y para asignado o realizado:
@@ -401,8 +413,80 @@ Verificación (14/10/2026):
   frontal para el perfil, trasera para el terreno) y «Elegir de la galería». En pantallas no táctiles
   (`pointer: coarse` falso) el navegador ignora `capture`, así que se muestra un solo botón «Elegir foto».
 
-### Fase 6 · Web Push
-- VAPID, `push_subscriptions`, Edge Function al insertar en `notifications`, instrucciones de instalación en iOS.
+### Fase 6 · Web Push (implementada, esperando revisión y prueba en el celular)
+- [x] `push_subscriptions`, `save_push_subscription`, `delete_push_subscription`, `notifications.pushed_at` (0022).
+- [x] Trigger `notifications_queue_push` (AFTER INSERT): si el destinatario tiene dispositivos, encola con
+  pg_net un POST a la Edge Function con `{ notification_id }` y nada más. pg_net es asíncrono y
+  transaccional: si la RPC falla, no sale nada. Cualquier error del trigger es un `warning`: el push nunca
+  hace fallar la RPC. La URL de la función está en Vault (`push_function_url`).
+- [x] Secreto compartido trigger → función (0023): el trigger manda el header `x-push-secret` con el valor
+  de Vault (`push_webhook_secret`); la función lo compara (en tiempo constante) con su secreto
+  `PUSH_WEBHOOK_SECRET` y responde 401 sin leer el cuerpo ni tocar la base. Si falta en Vault, el trigger
+  no encola nada. El valor no está en el repo: está en Vault y lo cargó el dueño a mano en
+  Edge Functions → Secrets. Para rotarlo: `vault.update_secret` y el secreto de la función a la vez.
+- [x] Edge Function `send-push` (`supabase/functions/send-push/index.ts`, deploy con el MCP, `verify_jwt`
+  false porque el trigger no tiene un JWT de usuario; se autentica con `x-push-secret`): reclama el aviso
+  con un update atómico (`pushed_at is null` y creado hace menos de 10 min),
+  arma el texto (igual que `src/notifications/describe.tsx`) y lo manda con `web-push` a cada dispositivo.
+  404/410 (y `BadWebPushToken`/`BadDeviceToken` de Apple) → borra el dispositivo.
+- [x] VAPID: la clave privada es solo el secreto `VAPID_PRIVATE_KEY` de la Edge Function (cargado a mano
+  por el dueño en Supabase → Edge Functions → Secrets, igual que `PUSH_WEBHOOK_SECRET`). La pública (no es secreta) está en
+  `src/push/vapid.ts` y en la función. Subject: `https://pastocontrol.vercel.app`.
+- [x] Service worker (`src/sw.ts`): `push` muestra siempre una notificación (título, texto, ícono, link
+  interno); `notificationclick` trae la app al frente y navega a la pantalla del aviso (o la abre).
+- [x] Front (`src/push/`): `pushStore` (permiso, suscripción, sincronización), `installStore`
+  (`beforeinstallprompt`), `DevicePrompts` (carteles), `DeviceSettings` (sección del perfil),
+  `IosInstallSteps` (pasos con dibujos), `PushParts`. `src/auth/signOut.ts` saca el dispositivo antes de
+  cerrar sesión.
+
+Decisiones de la Fase 6:
+- El permiso se pide **solo** al tocar «Activar avisos». Con el permiso ya dado, al abrir la app (y al
+  volver al frente) la suscripción se crea o renueva sola y se guarda para la cuenta actual (también si
+  se cambió el par VAPID).
+- Carteles solo en Mis pedidos, Trabajos y Avisos, de a uno: (1) iPhone sin instalar → pasos para
+  instalar (el push en iOS solo funciona instalada); (2) «Activá los avisos» / «Faltan activar los
+  avisos» (permiso dado pero falló la suscripción) / «Los avisos están bloqueados» con los pasos según
+  el dispositivo; (3) «Instalá PastoControl» con el diálogo del navegador (Chrome/Android/Edge). «Ahora
+  no» los cierra para siempre en ese dispositivo (localStorage); todo queda en el perfil, en «Avisos en
+  este dispositivo» e «Instalar la app».
+- «Desactivar avisos» saca el dispositivo y no se reactiva solo. «Cerrar sesión» también lo saca (si
+  entra otra cuenta y el permiso sigue dado, se suscribe para esa cuenta).
+- `send-push` se autentica con dos capas: (1) el secreto compartido `x-push-secret` (sin él, 401 antes de
+  tocar la base: una llamada ajena no gasta ni una consulta); (2) aun con el secreto, no recibe texto
+  sino un id, y reclama cada aviso una vez y solo si es reciente: no se puede mandar nada nuevo ni repetir
+  un aviso. Lo pidió el dueño después de revisar la primera versión (que tenía solo la capa 2).
+- El texto de la notificación no lleva datos privados (mismo payload que la bandeja). Viaja cifrado de
+  punta a punta (Web Push) a través de Google/Apple.
+
+Verificación (14/10/2026):
+- `sql/tests/fase6_seguridad.sql`: 50/50 (anon, A con dispositivos, B, C sin dispositivos, E sin
+  perfil): tabla ilegible e inescribible por la API, validación de endpoint (http, host ajeno, host
+  imitado, `@`, largo), claves, paso de dispositivo entre cuentas, máximo 10, trigger encola solo para
+  quien tiene dispositivos, con el id solo y el header `x-push-secret` igual al de Vault; sin URL o sin
+  secreto en Vault no encola nada y el aviso igual se crea. Con el trigger
+  nuevo, de nuevo: Fase 3 95/95, Fase 4 82/82, Fase 5 61/61. Sin rastro después.
+- Backend real (sesiones reales de prueba): aviso real → trigger → pg_net → `send-push` → FCM y Apple con
+  dispositivos de formato válido pero inexistentes. FCM: 404/410 → dispositivo borrado; Apple: 400
+  `BadWebPushToken` (rechaza el token, no la firma: con VAPID mal sería `BadJwtToken`) → borrado.
+  `pushed_at` marcado; volver a llamar con el mismo id → `skipped`; ids inválidos → 400; GET → 405.
+- Navegador (build de producción con `vite preview`): cartel «Activá los avisos» → permiso → este Chrome
+  de Linux no tiene servicio de push («Registration failed - push service error»; pasa en builds de
+  Chromium sin claves de Google) → se corrigió que el cartel desapareciera sin mostrar el error: ahora
+  queda «Faltan activar los avisos» con el motivo y reintentar. «Ahora no» no vuelve ni al cambiar de
+  pantalla ni al recargar; después aparece el de instalar y también se cierra. Pasos del iPhone con
+  dibujos revisados (simulando el userAgent). Cerrar sesión funciona. A 360 px sin scroll horizontal ni
+  botones de menos de 44 px.
+- Secreto compartido, contra la función deployada: sin header, con uno equivocado, vacío, y sin header con
+  un cuerpo que no es JSON → 401 las cuatro (el cuerpo ni se lee). El aviso usado en esas llamadas
+  (reciente y sin reclamar) siguió con `pushed_at` en null: no se tocó la base. Aviso normal con un
+  dispositivo (Apple, token inventado) → el trigger llamó con el header → 200 `{removed: 1}`, aviso
+  reclamado y dispositivo dado de baja.
+- Limpieza: 4 usuarios de prueba (`pastocontrol.prueba.ui-*` y `pastocontrol.prueba.secreto-*`) borrados por
+  el MCP (sus archivos, antes por la API). Sin usuarios de prueba, dispositivos ni archivos huérfanos.
+- Pendiente: la prueba de punta a punta con un celular real (Android con Chrome e iPhone con la app
+  instalada) contra el deploy de Vercel, que hace el dueño.
+- `tsc -b` y build sin errores. Advisors: 0029 en las 17 RPCs (por diseño), `push_subscriptions` y
+  `ratings` con RLS sin políticas (a propósito), «leaked password protection», índice sin uso.
 
 ### Pendientes futuros (sin fase asignada)
 - Limpieza de fotos huérfanas en `job-photos`: archivos subidos cuyo `create_job` nunca se completó
@@ -457,6 +541,9 @@ Verificación (14/10/2026):
 | `sql/0020_cancelacion_privada.sql` | 5 | `job_agreements.cancelled_by`; `cancel_job` ya no pone al cortador en `jobs.cancelled_by` |
 | `sql/0021_realizado_y_calificaciones.sql` | 5 | `ratings`, `private.profile_stats`, `get_profile_stats`, `mark_job_done`, `rate_job`, `has_rated_job`, estadísticas en `get_job_applicants` |
 | `sql/tests/fase5_seguridad.sql` | 5 | 61 casos |
+| `sql/0022_web_push.sql` | 6 | pg_net, `push_subscriptions`, `save_push_subscription`, `delete_push_subscription`, `notifications.pushed_at`, trigger `notifications_queue_push`, URL en Vault |
+| `sql/0023_push_secreto.sql` | 6 | Trigger con el header `x-push-secret` (valor en Vault, no en el repo) |
+| `sql/tests/fase6_seguridad.sql` | 6 | 50 casos |
 | `sql/tests/limpiar_usuarios_prueba.sql` | 1 | Borra usuarios de pruebas de punta a punta |
 
 Scripts (revisan las respuestas de red con sesiones reales; crean usuarios `pastocontrol.prueba.*`

@@ -10,8 +10,11 @@ import { App } from './App';
 import { setupChunkErrorRecovery, setupPwaUpdates } from './app/update/registerPwa';
 import { ConfigErrorScreen } from './ConfigErrorScreen';
 import { configProblem } from './lib/supabase';
+import { setupInstallPrompt } from './push/installStore';
 
 setupChunkErrorRecovery();
+// Antes de React: Chrome puede ofrecer la instalación apenas carga la página.
+setupInstallPrompt();
 
 const root = createRoot(document.getElementById('root')!);
 

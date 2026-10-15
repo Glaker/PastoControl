@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import { MODES } from '../app/modes';
 import { FullPageLoader } from '../components/FullPageLoader';
-import { supabase } from '../lib/supabase';
+import { signOut } from '../auth/signOut';
 import { ProfileForm } from '../profile/ProfileForm';
 import { useLocalities, useMyProfile } from '../profile/queries';
 import classes from './BienvenidaPage.module.css';
@@ -82,7 +82,7 @@ export function BienvenidaPage() {
           variant="subtle"
           color="gray"
           leftSection={<IconLogout size={20} aria-hidden />}
-          onClick={() => void supabase.auth.signOut()}
+          onClick={() => void signOut()}
         >
           Salir
         </Button>

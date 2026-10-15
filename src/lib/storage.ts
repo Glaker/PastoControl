@@ -15,3 +15,11 @@ export function writeLocal(key: string, value: string): void {
     // Sin almacenamiento (modo privado, bloqueado): se ignora.
   }
 }
+
+export function removeLocal(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Sin almacenamiento: se ignora.
+  }
+}

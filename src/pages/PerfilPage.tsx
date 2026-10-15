@@ -6,7 +6,8 @@ import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthProvider';
 import { FullPageLoader } from '../components/FullPageLoader';
 import { formatPhone } from '../lib/phone';
-import { supabase } from '../lib/supabase';
+import { signOut } from '../auth/signOut';
+import { DeviceSettings } from '../push/DeviceSettings';
 import { ProfileForm } from '../profile/ProfileForm';
 import { useAvatarUrl, useLocalities, useMyProfile } from '../profile/queries';
 
@@ -91,11 +92,13 @@ export function PerfilPage() {
         Ver mi perfil público
       </Button>
 
+      <DeviceSettings />
+
       <Divider label="Cuenta" labelPosition="left" mt="md" />
       <Button
         variant="default"
         leftSection={<IconLogout size={20} aria-hidden />}
-        onClick={() => void supabase.auth.signOut()}
+        onClick={() => void signOut()}
       >
         Cerrar sesión
       </Button>

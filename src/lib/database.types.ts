@@ -301,6 +301,7 @@ export type Database = {
           job_id: string | null
           kind: string
           payload: Json
+          pushed_at: string | null
           read_at: string | null
           user_id: string
         }
@@ -312,6 +313,7 @@ export type Database = {
           job_id?: string | null
           kind: string
           payload?: Json
+          pushed_at?: string | null
           read_at?: string | null
           user_id: string
         }
@@ -323,6 +325,7 @@ export type Database = {
           job_id?: string | null
           kind?: string
           payload?: Json
+          pushed_at?: string | null
           read_at?: string | null
           user_id?: string
         }
@@ -343,6 +346,44 @@ export type Database = {
           },
           {
             foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -500,6 +541,10 @@ export type Database = {
         }
         Returns: string
       }
+      delete_push_subscription: {
+        Args: { p_endpoint: string }
+        Returns: boolean
+      }
       get_job_applicants: {
         Args: { p_job_id: string }
         Returns: {
@@ -548,6 +593,10 @@ export type Database = {
       mark_notifications_read: { Args: { p_ids?: string[] }; Returns: number }
       rate_job: {
         Args: { p_job_id: string; p_would_work_again: boolean }
+        Returns: undefined
+      }
+      save_push_subscription: {
+        Args: { p_auth: string; p_endpoint: string; p_p256dh: string }
         Returns: undefined
       }
       update_application: {
