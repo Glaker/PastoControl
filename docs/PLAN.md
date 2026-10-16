@@ -16,7 +16,7 @@ Se actualiza al cerrar cada fase.
 | 5b | Ajustes después de probar el deploy: un solo botón de perfil, WhatsApp neutro, «Sacar foto» / «Elegir de la galería» | ✅ terminada y commiteada |
 | 6 | Web Push: avisos al celular, «Activar avisos», instalar la app (Android e iPhone) | 🟡 implementada, esperando revisión y prueba en el celular |
 | 7 | Dirección visible, ubicación en el mapa y trabajos cercanos | 🟡 implementada, deployada y verificada; esperando revisión |
-| 8 | Términos y privacidad, borrar la cuenta, cualquier ciudad (radio por distancia) | 🟡 paso 1 (0026) en la base y front listo; falta deploy del front y 0027 (destructivo) |
+| 8 | Términos y privacidad, borrar la cuenta, cualquier ciudad (radio por distancia) | 🟡 implementada, deployada (0026, front y 0027) y verificada; esperando revisión |
 
 Deploy: https://pastocontrol.vercel.app (Vercel). El ciclo completo se probó en celular y PC.
 
@@ -665,7 +665,7 @@ Verificación (15/10/2026, con el esquema final, después de 0025):
   y los días fuera de rango siguen deshabilitados. Se midió con una página temporal que solo muestra el
   campo (sin usuarios de prueba) y se borró después.
 
-### Fase 8 · Términos y privacidad, borrar la cuenta, cualquier ciudad (paso 1 y front listos; falta deploy y 0027)
+### Fase 8 · Términos y privacidad, borrar la cuenta, cualquier ciudad (implementada, deployada y verificada; esperando revisión)
 Pedido del dueño antes de abrir a usuarios reales. Cambia decisiones anteriores: la localidad deja de
 filtrar y de elegirse; la visibilidad pasa a ser por distancia.
 
@@ -675,7 +675,7 @@ filtrar y de elegirse; la visibilidad pasa a ser por distancia.
 - [x] Versionado: `terms_versions` / `terms_acceptances`; casilla obligatoria en el registro (la aceptación viaja
   en el `signUp` y la guarda un trigger); `RequireTerms` pide aceptar a quien no aceptó la vigente (los usuarios
   existentes, la primera vez). Si el front es más viejo que la versión vigente, pide recargar.
-- [x] Validación en la base: `private.require_terms` en las RPCs de escritura (se prende en 0027).
+- [x] Validación en la base: `private.require_terms` en las RPCs de escritura (prendido en 0027).
 - [x] Borrar la cuenta: botón en el perfil (zona aparte, en rojo) → `/cuenta/borrar`: lista de pendientes con un
   link a cada uno (no se cancela nada solo), contraseña, modal final. Edge Function `delete-account` →
   `delete_account` → Storage → Auth. Página `/cuenta-borrada`; el dispositivo queda limpio (push, preferencias,
@@ -694,8 +694,8 @@ Orden de deploy (como la Fase 7, sin ventana rota):
    igual lo limita a 25 de Mayo); los interruptores de términos y casa quedan apagados. Las FK y la PK de
    `ratings` se rehicieron con DROP CONSTRAINT (aprobado por el dueño): sin perder datos y con los mismos nombres.
    Edge Function `delete-account` deployada y `send-push` redeployada (texto con «Usuario eliminado»).
-2. **Deploy del front nuevo (lo hace el dueño)**: anda con 0026 solo (probado así en el navegador).
-3. **0027 (destructivo, requiere aprobación)**: prende términos y casa obligatorios, borra la firma vieja de
+2. **Deploy del front nuevo (hecho por el dueño, 16/10/2026)**: anda con 0026 solo (probado así en el navegador).
+3. **0027 (hecho, 16/10/2026, aprobado por el dueño)**: prende términos y casa obligatorios, borra la firma vieja de
    `upsert_my_profile`, `private.my_cutter_locality_id` y el índice `jobs_available_idx`. Después de 0027 el
    front viejo (si quedó abierto o en caché) no puede guardar el perfil ni escribir sin aceptar los términos.
 
@@ -752,9 +752,27 @@ Verificación (16/10/2026, con 0026 y el estado final de 0027 simulado dentro de
 - Advisors: 0029 en 23 RPCs (por diseño; 22 después de 0027), `push_subscriptions` y `ratings` con RLS sin
   políticas (a propósito), «leaked password protection», índice sin uso (`profiles_locality_id_idx`).
   `delete_account` no figura: authenticated no la puede ejecutar.
-- Limpieza: los usuarios de la prueba del navegador se borraron con la Edge Function (con sus archivos). El
-  `delete` de los demás usuarios de prueba (sin archivos ni pendientes) lo rechazó el MCP con «Invalid or expired
-  requestState»: queda para correr con el dueño presente.
+- Limpieza: los usuarios de la prueba del navegador se borraron con la Edge Function (con sus archivos); los
+  otros 36 usuarios de prueba, con `limpiar_usuarios_prueba.sql` (sin pendientes ni archivos; no hizo falta
+  `cerrar_pendientes_prueba.sql`).
+
+Verificación después de 0027 (16/10/2026, interruptores prendidos de verdad y sin la firma vieja):
+- SQL: fase1 37/37, fase2 98/98, fase3 96/96, fase4 82/82, fase5 61/61, fase6 50/50, fase7 75/75, fase8
+  111/111 (610/610). Sin rastro después.
+- Red: fases 2 21/21, 3 31/31, 4 27/27, 5 29/29, 7 27/27, 8 31/31; carrera 60 rondas, 0 invariantes rotas.
+  Los 29 usuarios que crearon se borraron con `limpiar_usuarios_prueba.sql` (sin pendientes ni archivos).
+- Base final: 5 usuarios reales, 4 perfiles, 1 pedido; 0 usuarios de prueba, 0 pedidos sin dueño, 0
+  postulaciones ni calificaciones anónimas, 0 archivos huérfanos. Solo existe la firma nueva de
+  `upsert_my_profile`; `my_cutter_locality_id` y `jobs_available_idx` ya no están.
+- Advisors: 0029 en 22 RPCs (por diseño), RLS sin políticas en `push_subscriptions` y `ratings` (a propósito),
+  «leaked password protection», `profiles_locality_id_idx` sin uso, y uno nuevo (INFO): `jobs_locality_id_fkey`
+  sin índice que la cubra (lo cubría `jobs_available_idx`; `profiles.locality_id` nunca se borra, así que no
+  pesa). `tsc -b` y build sin errores.
+- **Para revisar con el dueño:** dijo que en el celular aceptó los términos y cargó la casa, pero en esta base
+  ninguna cuenta real tiene aceptaciones (0) ni casa (los 3 cortadores reales sin `base_lat`), y el último
+  ingreso real es de las 16:15 UTC, antes de esta fase. La prueba del celular no llegó a este proyecto de
+  Supabase (¿el deploy apunta a otro proyecto o a otro `.env`?, ¿quedó la versión vieja?). Con 0027 prendido,
+  esas cuentas van a tener que aceptar los términos y los cortadores cargar la casa la próxima vez que entren.
 
 Front: `src/legal/` (terms, TermsGate), `src/pages/legal/` (Términos, Privacidad, BorrarCuentaInfo, LegalLinks,
 LegalParts), `src/account/` (deleteAccount, BorrarCuentaPage, CuentaBorradaPage), `src/profile/BaseLocationStep.tsx`;
@@ -827,7 +845,7 @@ TrabajoDetalle, Nuevo/Editar pedido, PersonaPage, describe y `send-push`.
 | `sql/0025_borrar_job_private.sql` | 7 | **Destructivo, requiere aprobación:** vuelve a copiar la dirección, `address_street` not null, borra las firmas viejas de `create_job` / `update_job` / `check_job_input`, `get_job_contact` sin dirección y la tabla `job_private` |
 | `sql/tests/fase7_seguridad.sql` | 7 | 73 casos (75 desde la Fase 8) |
 | `sql/0026_terminos_borrado_y_distancia.sql` | 8 | Paso 1, no rompe el front viejo: localidad por defecto, `check_in_argentina`, términos (tablas, `require_terms` apagado, `accept_terms`, `get_my_terms_status`, trigger del registro), casa obligatoria (apagada), radio, `get_available_jobs` e índice, RLS de jobs sin localidad, `upsert_my_profile` sin localidad, FK con set null y PK de `ratings` (DROP CONSTRAINT aprobado), `pending_items`, trigger de borrado, `delete_account`, RPCs con ids que pueden ser null |
-| `sql/0027_terminos_y_casa_obligatorios.sql` | 8 | **Destructivo, requiere aprobación; después del deploy del front:** prende términos y casa obligatorios, borra la firma vieja de `upsert_my_profile`, `my_cutter_locality_id` y `jobs_available_idx` |
+| `sql/0027_terminos_y_casa_obligatorios.sql` | 8 | **Destructivo; ejecutado el 16/10/2026 con la aprobación del dueño, después del deploy del front:** prende términos y casa obligatorios, borra la firma vieja de `upsert_my_profile`, `my_cutter_locality_id` y `jobs_available_idx` |
 | `sql/tests/fase8_seguridad.sql` | 8 | 111 casos |
 | `sql/tests/cerrar_pendientes_prueba.sql` | 8 | Solo si hace falta antes de la limpieza: cancela lo pendiente de los usuarios de prueba (no borra nada) |
 | `sql/tests/limpiar_usuarios_prueba.sql` | 1 | Borra usuarios de pruebas de punta a punta |
