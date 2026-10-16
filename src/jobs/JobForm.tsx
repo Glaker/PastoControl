@@ -5,7 +5,7 @@ import { useRef, useState, type ReactNode } from 'react';
 import { useUnsavedChanges } from '../app/update/updateState';
 import dayjs from '../lib/dayjs';
 import { friendlyError } from '../lib/errors';
-import { isInsideLocality, outsideLocalityMessage, type LatLng, type LocalityArea } from '../lib/geo';
+import { isInArgentina, OUTSIDE_ARGENTINA, type LatLng } from '../lib/geo';
 import { LocationField } from '../map/LocationField';
 import { PhotoPicker } from './PhotoPicker';
 import type { JobInput, PhotoItem } from './saveJob';
@@ -24,9 +24,10 @@ export type JobFormInitial = {
 };
 
 type Props = {
-  /** Localidad: el pin tiene que caer dentro de su radio, y la fecha y la hora se eligen y se guardan
-   * en su zona horaria. */
-  locality: LocalityArea & { timezone: string };
+  /** Zona horaria en la que se eligen y se guardan la fecha y la hora (la de la localidad por defecto). */
+  timeZone: string;
+  /** Dónde arranca el mapa sin pin ni GPS. El pin vale en cualquier lugar de Argentina. */
+  defaultCenter: LatLng;
   initial?: JobFormInitial;
   submitLabel: string;
   submitIcon: ReactNode;
@@ -50,8 +51,7 @@ type Values = {
   notes: string;
 };
 
-export function JobForm({ locality, initial, copyPhotos, submitLabel, submitIcon, beforeSubmit, onSubmit, onCancel }: Props) {
-  const timeZone = locality.timezone;
+export function JobForm({ timeZone, defaultCenter, initial, copyPhotos, submitLabel, submitIcon, beforeSubmit, onSubmit, onCancel }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const [photos, setPhotos] = useState<PhotoItem[]>(() =>
     (initial?.photoPaths ?? []).map((path) => ({ kind: copyPhotos ? 'copy' : 'existing', key: path, path })),
@@ -78,7 +78,7 @@ export function JobForm({ locality, initial, copyPhotos, submitLabel, submitIcon
     },
     validate: {
       location: (v) =>
-        !v ? 'Marcá la ubicación en el mapa.' : isInsideLocality(locality, v) ? null : outsideLocalityMessage(locality),
+        !v ? 'Marcá la ubicación en el mapa.' : isInArgentina(v) ? null : OUTSIDE_ARGENTINA,
       street: (v) => {
         const len = v.trim().length;
         return len < 2 ? 'Escribí la calle.' : len > 120 ? 'Hasta 120 letras.' : null;
@@ -145,7 +145,7 @@ export function JobForm({ locality, initial, copyPhotos, submitLabel, submitIcon
           label="Dónde hay que cortar"
           description="Marcá el terreno en el mapa: así los cortadores ven qué tan cerca les queda y llegan sin perderse."
           required
-          locality={locality}
+          defaultCenter={defaultCenter}
           value={form.values.location}
           onChange={(value) => {
             form.setFieldValue('location', value);

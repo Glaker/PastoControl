@@ -4,9 +4,10 @@ import { supabase } from '../lib/supabase';
 
 export type Applicant = {
   application_id: string;
-  cutter_id: string;
-  first_name: string;
-  last_initial: string;
+  /** null (y sin nombre ni foto): el cortador borró su cuenta. */
+  cutter_id: string | null;
+  first_name: string | null;
+  last_initial: string | null;
   avatar_path: string | null;
   status: ApplicationStatus;
   proposed_price_ars: number | null;

@@ -11,6 +11,9 @@
 --   C = cliente sin dispositivos
 --   E = usuario sin perfil
 --
+-- Fase 8: estado final de 0027 simulado dentro de la prueba (términos y ubicación base obligatorios;
+-- se deshace con el resto). Todos aceptaron los términos y B tiene su casa.
+--
 -- Esperado: 'ok' | 'err:<fragmento>' | 'count:<n>' | 'affected:<n>'
 
 do $test$
@@ -39,6 +42,8 @@ declare
   queued text := 'select 1 from net.http_request_queue q join public.notifications n on convert_from(q.body, ''UTF8'')::jsonb = jsonb_build_object(''notification_id'', n.id) where n.user_id = %L and n.job_id = %L and q.method = ''POST'' and q.url = (select decrypted_secret from vault.decrypted_secrets where name = ''push_function_url'')';
 begin
   select id into loc from public.localities where slug = '25-de-mayo-bsas';
+  execute $f$create or replace function private.terms_enforced() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
+  execute $f$create or replace function private.cutter_base_required() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
 
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
   select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', m, '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}'
@@ -46,13 +51,15 @@ begin
     (a, 'prueba-a@pastocontrol.test'), (b, 'prueba-b@pastocontrol.test'), (c, 'prueba-c@pastocontrol.test'),
     (e, 'prueba-e@pastocontrol.test')
   ) as v(u, m);
+  insert into public.terms_acceptances (user_id, version) select u, private.current_terms_version() from unnest(array[a, b, c, e]) u;
   insert into storage.objects (bucket_id, name, owner_id) values ('avatars', b || '/yo.jpg', b);
   insert into public.profiles (id, locality_id, first_name, last_initial, avatar_path, is_client, is_cutter) values
     (a, loc, 'Ana', 'Á', null, true, false),
     (b, loc, 'Beto', 'B', b || '/yo.jpg', false, true),
     (c, loc, 'Carla', 'C', null, true, false);
-  insert into public.profile_private (user_id, last_name, phone_e164) values
-    (a, 'Álvarez', '+5492345111111'), (b, 'Benítez', '+5492345222222'), (c, 'Castro', '+5492345333333');
+  insert into public.profile_private (user_id, last_name, phone_e164, base_lat, base_lng) values
+    (a, 'Álvarez', '+5492345111111', null, null), (b, 'Benítez', '+5492345222222', -35.43, -60.17),
+    (c, 'Castro', '+5492345333333', null, null);
   insert into public.jobs (id, client_id, locality_id, zone, address_street, address_number, location_lat, location_lng, price_ars, desired_at) values
     (j1, a, loc, 'Barrio Centro', 'Calle Falsa', '123', -35.4324, -60.1716, 15000, now() + interval '2 days'),
     (j3, c, loc, 'Villa Sanz', 'Mitre', '450', -35.4300, -60.1700, 15000, now() + interval '3 days');

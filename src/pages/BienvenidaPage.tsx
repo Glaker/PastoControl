@@ -6,7 +6,8 @@ import { MODES } from '../app/modes';
 import { FullPageLoader } from '../components/FullPageLoader';
 import { signOut } from '../auth/signOut';
 import { ProfileForm } from '../profile/ProfileForm';
-import { useLocalities, useMyProfile } from '../profile/queries';
+import { BaseLocationStep } from '../profile/BaseLocationStep';
+import { useMyProfile } from '../profile/queries';
 import classes from './BienvenidaPage.module.css';
 
 type Choice = 'pedir' | 'cortar' | 'ambos';
@@ -32,16 +33,33 @@ const CHOICES: Array<{ value: Choice; title: string; description: string; icon: 
   },
 ];
 
-/** Onboarding: 1) qué quiere hacer, 2) sus datos. Después se puede cambiar desde el perfil. */
+/**
+ * Onboarding: 1) qué quiere hacer, 2) sus datos, 3) si corta pasto, desde dónde sale (obligatorio).
+ * Después se puede cambiar desde el perfil.
+ */
 export function BienvenidaPage() {
   const { data: profile, isPending } = useMyProfile();
   const navigate = useNavigate();
   const [step, setStep] = useState<'roles' | 'datos'>('roles');
   const [choice, setChoice] = useState<Choice | null>(null);
-  // Precarga: en el paso de datos la característica telefónica de la localidad ya está disponible.
-  useLocalities();
 
   if (isPending) return <FullPageLoader />;
+  // Paso 3 (cortadores): el perfil ya está creado, falta la casa.
+  if (profile && profile.is_cutter && profile.private.base_lat === null) {
+    return (
+      <BaseLocationStep
+        profile={profile}
+        title="Desde dónde salís a cortar"
+        intro="Último paso. Con esto te mostramos los trabajos que te quedan cerca y a qué distancia está cada uno."
+        onSaved={() => navigate(profile.is_client ? MODES.pedir.home : MODES.cortar.home, { replace: true })}
+        extra={
+          <Button variant="subtle" color="gray" leftSection={<IconLogout size={20} aria-hidden />} onClick={() => void signOut()}>
+            Salir
+          </Button>
+        }
+      />
+    );
+  }
   if (profile) return <Navigate to="/" replace />;
 
   if (step === 'roles' || !choice) {
@@ -105,7 +123,10 @@ export function BienvenidaPage() {
         initialRoles={roles}
         showRoles={false}
         submitLabel="Listo, crear mi perfil"
-        onSaved={() => navigate(roles.isClient ? MODES.pedir.home : MODES.cortar.home, { replace: true })}
+        // Si corta pasto, al guardarse el perfil esta misma pantalla pasa al paso de la casa.
+        onSaved={() => {
+          if (!roles.isCutter) navigate(MODES.pedir.home, { replace: true });
+        }}
       />
       <Button variant="default" leftSection={<IconArrowLeft size={20} aria-hidden />} onClick={() => setStep('roles')}>
         Volver

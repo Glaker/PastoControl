@@ -1,5 +1,5 @@
 import { Avatar, Badge, Card, Group, Stack, Text } from '@mantine/core';
-import { IconCalendarEvent, IconChevronRight, IconHome, IconPhoto, IconRoute, IconSend, IconUsers } from '@tabler/icons-react';
+import { IconCalendarEvent, IconChevronRight, IconHome, IconPhoto, IconRoute, IconSend, IconUserOff, IconUsers } from '@tabler/icons-react';
 import { Link } from 'react-router';
 import { formatDateTime, formatPrice } from '../lib/format';
 import { formatDistance } from '../lib/geo';
@@ -111,12 +111,13 @@ function PendingBadge({ count }: { count: number }) {
   );
 }
 
+/** Quién publicó: foto y nombre visible (o «Usuario eliminado» si borró su cuenta). */
 export function ClientLine({ client, size = 40 }: { client: Job['client']; size?: number }) {
-  const { data: url } = useAvatarUrl(client.avatar_path);
+  const { data: url } = useAvatarUrl(client?.avatar_path);
   return (
     <Group gap="sm" wrap="nowrap">
-      <Avatar src={url ?? null} size={size} radius={999} color="blue" alt="">
-        {`${client.first_name.charAt(0)}${client.last_initial}`}
+      <Avatar src={url ?? null} size={size} radius={999} color={client ? 'blue' : 'gray'} alt="">
+        {client ? `${client.first_name.charAt(0)}${client.last_initial}` : <IconUserOff size={size / 2} aria-hidden />}
       </Avatar>
       <Text fw={600}>{displayName(client)}</Text>
     </Group>

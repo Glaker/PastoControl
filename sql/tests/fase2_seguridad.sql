@@ -11,8 +11,11 @@
 --   A = cliente (dueño de los pedidos); tiene foto, así que puede pasar a ser solo cortador
 --   B = cortador de la misma localidad
 --   C = tercero: cliente de la misma localidad, sin rol de cortador
---   D = cortador de OTRA localidad
+--   D = cortador de OTRA localidad (desde la Fase 8 la localidad no filtra: ve los publicados igual que B)
 --   E = registrado sin perfil
+--
+-- Fase 8: firma nueva de upsert_my_profile y estado final de 0027 simulado dentro de la prueba
+-- (términos y ubicación base obligatorios; se deshace con el resto). Todos aceptaron los términos.
 --
 -- Esperado: 'ok' | 'err:<fragmento>' | 'count:<n>' | 'affected:<n>' | 'noeffect' (error o 0 filas)
 
@@ -47,6 +50,8 @@ begin
   insert into public.localities (slug, name, province, phone_area_code, center_lat, center_lng, radius_m)
   values ('otra-localidad-prueba', 'Otra', 'Buenos Aires', '2346', -35.0, -60.0, 5000)
   returning id into loc2;
+  execute $f$create or replace function private.terms_enforced() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
+  execute $f$create or replace function private.cutter_base_required() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
 
   p1 := a || '/' || j1 || '/1.jpg';
   p2 := a || '/' || j1 || '/2.jpg';
@@ -58,6 +63,7 @@ begin
     (a, 'prueba-a@pastocontrol.test'), (b, 'prueba-b@pastocontrol.test'), (c, 'prueba-c@pastocontrol.test'),
     (d, 'prueba-d@pastocontrol.test'), (e, 'prueba-e@pastocontrol.test')
   ) as v(u, m);
+  insert into public.terms_acceptances (user_id, version) select u, private.current_terms_version() from unnest(array[a, b, c, d, e]) u;
 
   insert into storage.objects (bucket_id, name, owner_id)
   values ('avatars', a || '/foto.jpg', a), ('avatars', b || '/yo.jpg', b), ('avatars', d || '/yo.jpg', d);
@@ -86,7 +92,7 @@ begin
       (3,  'anon', 'anon no puede llamar a create_job', format('select public.create_job(%L, -35.4324, -60.1716, ''Calle 1'', ''1'', 15000, now() + interval ''1 day'', null, ''Centro'')', j9), 'err:permission denied'),
       (4,  'anon', 'anon no puede llamar a update_job', format(upd, j1, 15000, 'now() + interval ''1 day''', '''{}''::text[]'), 'err:permission denied'),
       (5,  'anon', 'anon no puede llamar a cancel_job', format('select public.cancel_job(%L)', j1), 'err:permission denied'),
-      (6,  'anon', 'anon no puede usar funciones de private', 'select private.my_cutter_locality_id()', 'err:permission denied'),
+      (6,  'anon', 'anon no puede usar funciones de private', 'select private.i_am_cutter()', 'err:permission denied'),
 
       -- A publica
       (10, 'A', 'A sube la foto 1 a su carpeta del pedido', format('insert into storage.objects (bucket_id, name, owner_id) values (''job-photos'', %L, %L)', p1, a), 'ok'),
@@ -143,8 +149,9 @@ begin
       (65, 'C', 'C no puede tener más de 5 publicados a la vez', format('select public.create_job(%L, -35.4324, -60.1716, ''Calle 1'', ''1'', 15000, now() + interval ''1 day'', null, ''Centro'')', j9), 'err:5 pedidos publicados'),
 
       -- D, cortador de otra localidad; E, sin perfil
-      (70, 'D', 'D (otra localidad) no ve los pedidos', format('select * from public.jobs where client_id in (%L, %L)', a, c), 'count:0'),
-      (71, 'D', 'D no ve las fotos', 'select * from storage.objects where bucket_id = ''job-photos''', 'count:0'),
+      (70, 'D', 'D (otra localidad) ve los 7 publicados de A y C: la localidad ya no filtra (Fase 8)', format('select * from public.jobs where client_id in (%L, %L)', a, c), 'count:7'),
+      (71, 'D', 'D ve solo las 2 fotos listadas del pedido 1 (no la que no está en el pedido)', 'select * from storage.objects where bucket_id = ''job-photos''', 'count:2'),
+      (74, 'D', 'D no ve datos privados de nadie (teléfono, apellido, ubicación base)', format('select * from public.profile_private where user_id <> %L', d), 'count:0'),
       (72, 'E', 'E (sin perfil) no puede publicar', format('select public.create_job(%L, -35.4324, -60.1716, ''Calle 1'', ''1'', 15000, now() + interval ''1 day'', null, ''Centro'')', j9), 'err:Para publicar pedidos'),
       (73, 'E', 'E no ve pedidos', 'select * from public.jobs', 'count:0'),
 
@@ -157,8 +164,8 @@ begin
       (85, 'B', 'B vuelve a ver el pedido 2', format('select * from public.jobs where client_id = %L', a), 'count:2'),
 
       -- Rol de cliente
-      (90, 'A', 'A no puede dejar de ser cliente con pedidos publicados', format('select public.upsert_my_profile(''Ana'', ''Álvarez'', ''+5492345111111'', %s::smallint, false, true, %L)', loc, a || '/foto.jpg'), 'err:Tenés pedidos publicados'),
-      (91, 'A', 'A sí puede sumar el rol de cortador manteniendo el de cliente', format('select public.upsert_my_profile(''Ana'', ''Álvarez'', ''+5492345111111'', %s::smallint, true, true, %L)', loc, a || '/foto.jpg'), 'ok'),
+      (90, 'A', 'A no puede dejar de ser cliente con pedidos publicados', format('select public.upsert_my_profile(''Ana'', ''Álvarez'', ''+5492345111111'', false, true, %L)', a || '/foto.jpg'), 'err:Tenés pedidos publicados'),
+      (91, 'A', 'A sí puede sumar el rol de cortador manteniendo el de cliente', format('select public.upsert_my_profile(''Ana'', ''Álvarez'', ''+5492345111111'', true, true, %L)', a || '/foto.jpg'), 'ok'),
 
       -- Editar
       (100, 'A', 'A edita el pedido 1: sube el precio y saca la foto 2', format(upd, j1, 18000, 'now() + interval ''2 days''', format('array[%L]', p1)), 'ok'),
@@ -182,13 +189,13 @@ begin
       (120, 'C', 'Los vencidos no cuentan para el límite: C publica otro', format('select public.create_job(%L, -35.4324, -60.1716, ''Calle 1'', ''1'', 15000, now() + interval ''1 day'', null, ''Centro'')', j9), 'ok'),
       (121, 'A', 'A cancela el pedido 2', format('select public.cancel_job(%L)', j2), 'ok'),
       (122, 'A', 'A cancela el pedido 3', format('select public.cancel_job(%L)', j3), 'ok'),
-      (123, 'A', 'Sin pedidos activos, A ya puede dejar de ser cliente', format('select public.upsert_my_profile(''Ana'', ''Álvarez'', ''+5492345111111'', %s::smallint, false, true, %L)', loc, a || '/foto.jpg'), 'ok'),
+      (123, 'A', 'Sin pedidos activos, A ya puede dejar de ser cliente', format('select public.upsert_my_profile(''Ana'', ''Álvarez'', ''+5492345111111'', false, true, %L)', a || '/foto.jpg'), 'ok'),
       (124, 'A', 'A sin rol de cliente no puede publicar', format('select public.create_job(gen_random_uuid(), -35.4324, -60.1716, ''Calle 1'', ''1'', 15000, now() + interval ''1 day'', null, ''Centro'')'), 'err:Para publicar pedidos'),
       (125, 'A', 'A sigue viendo su historial', format('select * from public.jobs where client_id = %L', a), 'count:3'),
       (126, 'B', 'B ve el pedido vigente de C pero no los vencidos', format('select * from public.jobs where client_id = %L', c), 'count:1'),
       (127, 'C', 'C cancela su único pedido vigente', format('select public.cancel_job(%L)', j9), 'ok'),
       (128, 'admin', '(preparación) C sube una foto de perfil', format('insert into storage.objects (bucket_id, name, owner_id) values (''avatars'', %L, %L)', c || '/yo.jpg', c), 'ok'),
-      (129, 'C', 'Con pedidos vencidos (siguen publicados), C no puede dejar de ser cliente', format('select public.upsert_my_profile(''Carla'', ''Castro'', ''+5492345333333'', %s::smallint, false, true, %L)', loc, c || '/yo.jpg'), 'err:Tenés pedidos publicados'),
+      (129, 'C', 'Con pedidos vencidos (siguen publicados), C no puede dejar de ser cliente', format('select public.upsert_my_profile(''Carla'', ''Castro'', ''+5492345333333'', false, true, %L)', c || '/yo.jpg'), 'err:Tenés pedidos publicados'),
 
       -- Estructura
       (130, 'admin', 'jobs no tiene columnas de teléfono ni apellido', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''jobs'' and column_name ilike any (array[''%phone%'', ''%telef%'', ''%last_name%'', ''%apellido%''])', 'count:0'),

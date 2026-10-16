@@ -17,7 +17,8 @@ type PublicProfile = {
   is_client: boolean;
   is_cutter: boolean;
   created_at: string;
-  locality: { name: string; timezone: string } | null;
+  /** Solo para la zona horaria («En PastoControl desde…»): la localidad ya no se muestra. */
+  locality: { timezone: string } | null;
 };
 
 /** Perfil público: nombre visible, foto, roles, trabajos realizados y % de "volverían a trabajar". */
@@ -30,7 +31,7 @@ export function PersonaPage() {
       // Solo columnas públicas: nunca profile_private (apellido y teléfono).
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, last_initial, avatar_path, is_client, is_cutter, created_at, locality:localities(name, timezone)')
+        .select('id, first_name, last_initial, avatar_path, is_client, is_cutter, created_at, locality:localities(timezone)')
         .eq('id', personId!)
         .maybeSingle();
       if (error) throw error;
@@ -86,7 +87,7 @@ export function PersonaPage() {
             )}
           </Group>
           <Text c="dimmed" ta="center">
-            {p.locality ? `${p.locality.name} · ` : ''}En PastoControl desde {since}
+            En PastoControl desde {since}
           </Text>
         </Stack>
       </Card>

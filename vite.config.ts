@@ -22,7 +22,7 @@ export default defineConfig({
       manifest: {
         name: 'PastoControl',
         short_name: 'PastoControl',
-        description: 'Encontrá quién te corte el pasto, o conseguí trabajos de corte en tu localidad.',
+        description: 'Encontrá quién te corte el pasto, o conseguí trabajos de corte cerca tuyo.',
         lang: 'es-AR',
         start_url: '/',
         scope: '/',

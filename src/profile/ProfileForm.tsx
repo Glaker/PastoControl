@@ -1,15 +1,14 @@
-import { Alert, Button, Checkbox, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Alert, Button, Checkbox, Stack, Text, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { IconAlertTriangle, IconCheck, IconX } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useUnsavedChanges } from '../app/update/updateState';
-import { FullPageLoader } from '../components/FullPageLoader';
 import { useUserId } from '../auth/AuthProvider';
 import { friendlyError } from '../lib/errors';
 import { formatPhone, normalizeArPhone } from '../lib/phone';
 import { AvatarPicker } from './AvatarPicker';
-import { myProfileKey, useLocalities, type Locality, type MyProfile } from './queries';
+import { myProfileKey, type MyProfile } from './queries';
 import { saveProfile } from './saveProfile';
 
 type Props = {
@@ -26,7 +25,6 @@ type Values = {
   firstName: string;
   lastName: string;
   phone: string;
-  localityId: string;
   isClient: boolean;
   isCutter: boolean;
 };
@@ -34,11 +32,6 @@ type Values = {
 export function ProfileForm({ profile, initialRoles, showRoles, submitLabel, onSaved, onCancel }: Props) {
   const userId = useUserId();
   const queryClient = useQueryClient();
-  const { data: localities, isPending: loadingLocalities, error: localitiesError } = useLocalities();
-  // Las reglas de validación se arman una sola vez: leen las localidades por ref para ver las actuales.
-  const localitiesRef = useRef(localities);
-  localitiesRef.current = localities;
-
   const [newAvatar, setNewAvatar] = useState<Blob | null>(null);
   const [removedAvatar, setRemovedAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -50,31 +43,22 @@ export function ProfileForm({ profile, initialRoles, showRoles, submitLabel, onS
       firstName: profile?.first_name ?? '',
       lastName: profile?.private.last_name ?? '',
       phone: profile ? formatPhone(profile.private.phone_e164) : '',
-      localityId: profile ? String(profile.locality_id) : '',
       isClient: initialRoles.isClient,
       isCutter: initialRoles.isCutter,
     },
     validate: {
       firstName: (v) => (v.trim() ? (v.trim().length > 40 ? 'Hasta 40 letras.' : null) : 'Escribí tu nombre.'),
       lastName: (v) => (v.trim() ? (v.trim().length > 60 ? 'Hasta 60 letras.' : null) : 'Escribí tu apellido.'),
-      phone: (v, values) => {
-        const r = normalizeArPhone(v, areaCodeFor(values.localityId));
+      phone: (v) => {
+        const r = normalizeArPhone(v);
         return r.ok ? null : r.error;
       },
-      localityId: (v) => (pickLocality(localitiesRef.current, v) ? null : 'Elegí tu localidad.'),
       isCutter: (v, values) => (v || values.isClient ? null : 'Elegí al menos una opción.'),
     },
   });
 
-  const locality = pickLocality(localities, form.values.localityId);
-  const effectiveLocalityId = form.values.localityId || (locality ? String(locality.id) : '');
-
-  function areaCodeFor(localityId: string) {
-    return pickLocality(localitiesRef.current, localityId)?.phone_area_code ?? '';
-  }
-
   function normalizePhoneField() {
-    const r = normalizeArPhone(form.values.phone, areaCodeFor(effectiveLocalityId));
+    const r = normalizeArPhone(form.values.phone);
     if (r.ok) form.setFieldValue('phone', r.display);
     form.validateField('phone');
   }
@@ -88,8 +72,8 @@ export function ProfileForm({ profile, initialRoles, showRoles, submitLabel, onS
       setAvatarError('Para cortar pasto necesitás una foto de perfil.');
       return;
     }
-    const phone = normalizeArPhone(values.phone, areaCodeFor(effectiveLocalityId));
-    if (!phone.ok || !effectiveLocalityId) return;
+    const phone = normalizeArPhone(values.phone);
+    if (!phone.ok) return;
 
     setSaving(true);
     try {
@@ -97,7 +81,6 @@ export function ProfileForm({ profile, initialRoles, showRoles, submitLabel, onS
         firstName: values.firstName.trim(),
         lastName: values.lastName.trim(),
         phoneE164: phone.e164,
-        localityId: Number(effectiveLocalityId),
         isClient: values.isClient,
         isCutter: values.isCutter,
         currentAvatarPath: profile?.avatar_path ?? null,
@@ -115,18 +98,6 @@ export function ProfileForm({ profile, initialRoles, showRoles, submitLabel, onS
       setSaving(false);
     }
   });
-
-  if (localitiesError) {
-    return (
-      <Alert color="red" icon={<IconAlertTriangle aria-hidden />} title="No pudimos cargar las localidades">
-        {friendlyError(localitiesError)}
-      </Alert>
-    );
-  }
-
-  // El formulario aparece recién con las localidades cargadas: la característica telefónica
-  // hace falta para completar los números locales, y así nadie toca "Guardar" antes de tiempo.
-  if (loadingLocalities) return <FullPageLoader label="Cargando tus datos…" />;
 
   const initials = `${form.values.firstName.trim().charAt(0)}${form.values.lastName.trim().charAt(0)}`.toUpperCase();
 
@@ -157,7 +128,8 @@ export function ProfileForm({ profile, initialRoles, showRoles, submitLabel, onS
         />
         <TextInput
           label="WhatsApp"
-          description="Con característica. Ej.: 2345 15 123456. Solo lo ve la persona con la que acordás un trabajo."
+          description="Con la característica de tu ciudad. Solo lo ve la persona con la que acordás un trabajo."
+          placeholder="2345 15 123456"
           type="tel"
           inputMode="tel"
           autoComplete="tel"
@@ -165,28 +137,6 @@ export function ProfileForm({ profile, initialRoles, showRoles, submitLabel, onS
           {...form.getInputProps('phone')}
           onBlur={normalizePhoneField}
         />
-
-        {localities && localities.length > 1 ? (
-          <Select
-            label="Localidad"
-            description={
-              profile
-                ? 'No se puede cambiar mientras tengas pedidos publicados o asignados, o postulaciones pendientes o aceptadas.'
-                : undefined
-            }
-            withAsterisk
-            allowDeselect={false}
-            data={localities.map((l) => ({ value: String(l.id), label: `${l.name}, ${l.province}` }))}
-            {...form.getInputProps('localityId')}
-          />
-        ) : (
-          <div>
-            <Text size="sm" fw={500}>
-              Localidad
-            </Text>
-            <Text size="lg">{locality ? `${locality.name}, ${locality.province}` : '—'}</Text>
-          </div>
-        )}
 
         {showRoles && (
           <Stack gap="xs">
@@ -232,9 +182,4 @@ export function ProfileForm({ profile, initialRoles, showRoles, submitLabel, onS
       </Stack>
     </form>
   );
-}
-
-function pickLocality(localities: Locality[] | undefined, localityId: string): Locality | undefined {
-  if (!localities?.length) return undefined;
-  return localities.find((l) => String(l.id) === localityId) ?? (localities.length === 1 ? localities[0] : undefined);
 }

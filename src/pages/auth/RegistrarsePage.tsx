@@ -1,9 +1,11 @@
-import { Alert, Button, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Checkbox, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { IconAlertTriangle, IconLogin, IconMailCheck, IconUserPlus } from '@tabler/icons-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { PasswordField } from '../../components/PasswordField';
+import { TERMS_VERSION } from '../../legal/terms';
+import { LegalLinks } from '../legal/LegalLinks';
 import { friendlyError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 
@@ -12,18 +14,24 @@ export function RegistrarsePage() {
   const [loading, setLoading] = useState(false);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const form = useForm({
-    initialValues: { email: '', password: '' },
+    initialValues: { email: '', password: '', terms: false },
     validate: {
       email: (v) => (/^\S+@\S+\.\S+$/.test(v.trim()) ? null : 'Escribí un email válido.'),
       password: (v) => (v.length >= 8 ? null : 'La contraseña tiene que tener al menos 8 caracteres.'),
+      terms: (v) => (v ? null : 'Para crear la cuenta tenés que aceptar los términos y la política de privacidad.'),
     },
   });
 
   // Con "Confirm email" desactivado, signUp ya inicia sesión y PublicOnly lleva al onboarding.
+  // La aceptación viaja con el registro (terms_version): la guarda la base, con la fecha, en el mismo momento.
   const onSubmit = form.onSubmit(async ({ email, password }) => {
     setError(null);
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { terms_version: TERMS_VERSION } },
+    });
     setLoading(false);
     if (error) {
       setError(friendlyError(error, 'No pudimos crear la cuenta. Probá de nuevo.'));
@@ -70,6 +78,13 @@ export function RegistrarsePage() {
             description="Al menos 8 caracteres."
             autoComplete="new-password"
             {...form.getInputProps('password')}
+          />
+          <LegalLinks />
+          <Checkbox
+            size="md"
+            label="Acepto los términos y la política de privacidad"
+            styles={{ body: { alignItems: 'center', minHeight: 44 } }}
+            {...form.getInputProps('terms', { type: 'checkbox' })}
           />
           {error && (
             <Alert color="red" icon={<IconAlertTriangle aria-hidden />} role="alert">

@@ -16,18 +16,23 @@ Se actualiza al cerrar cada fase.
 | 5b | Ajustes después de probar el deploy: un solo botón de perfil, WhatsApp neutro, «Sacar foto» / «Elegir de la galería» | ✅ terminada y commiteada |
 | 6 | Web Push: avisos al celular, «Activar avisos», instalar la app (Android e iPhone) | 🟡 implementada, esperando revisión y prueba en el celular |
 | 7 | Dirección visible, ubicación en el mapa y trabajos cercanos | 🟡 implementada, deployada y verificada; esperando revisión |
+| 8 | Términos y privacidad, borrar la cuenta, cualquier ciudad (radio por distancia) | 🟡 paso 1 (0026) en la base y front listo; falta deploy del front y 0027 (destructivo) |
 
 Deploy: https://pastocontrol.vercel.app (Vercel). El ciclo completo se probó en celular y PC.
 
 ## Producto
 
-PWA para conseguir quién te corte el pasto. Arranca en 25 de Mayo (Buenos Aires), pero la localidad
-es un dato del modelo (`localities`), nunca un valor fijo en el código.
+PWA para conseguir quién te corte el pasto. Arrancó en 25 de Mayo (Buenos Aires) y desde la Fase 8 sirve en
+cualquier lugar de Argentina: la localidad ya no se elige ni filtra (queda solo para la zona horaria y el centro
+del mapa por defecto, `localities.is_default`, nunca un valor fijo en el código).
 
 - **Cliente:** publica su terreno con precio, fecha y hora.
 - **Cortador:** se postula aceptando las condiciones o con contraoferta de precio y/o de horario.
 - Cada pedido lleva su ubicación marcada en el mapa y la dirección escrita, que ven los cortadores (Fase 7).
-  Los cortadores ordenan los trabajos por distancia y ven un mapa con los disponibles.
+  Los cortadores ven los trabajos a menos de 5, 10, 20 o 50 km (eligen ellos) de su ubicación actual o de su
+  casa, del más cercano al más lejano, en lista o en mapa (Fase 8).
+- Términos y política de privacidad públicos (`/terminos`, `/privacidad`, `/borrar-cuenta`), aceptados al
+  registrarse y de nuevo cuando cambia la versión. Cada uno puede borrar su cuenta desde el perfil (Fase 8).
 - El cliente acepta una postulación, se liberan el nombre completo y los WhatsApp, y al terminar se califican entre sí.
 - Gratis: sin pagos ni chat dentro de la app. Tampoco publicidad ni verificación de identidad. Mapa con
   Leaflet y OpenStreetMap: sin Google Maps, sin geocodificación ni API de rutas.
@@ -71,6 +76,9 @@ operada con el MCP (limitado a este proyecto).
 ### Edge Functions
 - Código en `supabase/functions/<nombre>/index.ts` (la estructura de la CLI), deploy con
   `deploy_edge_function` del MCP. Lo deployado tiene que ser idéntico al archivo del repo.
+- `send-push` (Fase 6, `verify_jwt` false, secreto compartido) y `delete-account` (Fase 8, `verify_jwt` true:
+  la llama la app con la sesión; además verifica el JWT con `auth.getUser` y la contraseña). La clave de servicio
+  solo la usan las funciones (la pone Supabase como variable; no hay que cargarla).
 - Secretos (`VAPID_PRIVATE_KEY`, `PUSH_WEBHOOK_SECRET`): los carga el dueño en Supabase → Edge Functions → Secrets. Nunca en el
   repo, en el front ni en archivos del proyecto.
 
@@ -79,11 +87,23 @@ operada con el MCP (limitado a este proyecto).
   WhatsApp, solo después (`get_job_contact`, Fase 4).
 - **Dirección y ubicación del pedido: visibles** (decisión del dueño, Fase 7: en un pueblo todos saben
   dónde vive cada uno). Las ve cualquier usuario logueado que pueda ver el pedido según el RLS de `jobs`
-  (el dueño, los cortadores de la localidad mientras está publicado y los que se postularon). Anon, nada.
+  (el dueño, **todos los cortadores** mientras está publicado y no venció —desde la Fase 8, de cualquier
+  ciudad: el radio es un filtro de relevancia, no de privacidad— y los que se postularon). Anon, nada.
   Reemplaza la decisión de las fases 2–6 (dirección privada en `job_private`, liberada al aceptar).
-- **Ubicación base del cortador («mi casa»): privada**, en `profile_private`; solo la lee el dueño.
-- Teléfono con libphonenumber-js, guardado como `+549…`; si falta la característica se completa con
-  la de la localidad (`src/lib/phone.ts`).
+- **Ubicación base del cortador («mi casa»): privada y obligatoria para cortar** (Fase 8), en
+  `profile_private`; solo la lee el dueño. También el radio de búsqueda (`search_radius_km`).
+- Teléfono con libphonenumber-js, guardado como `+549…`. Desde la Fase 8 la característica es obligatoria
+  (ejemplo en el campo: «2345 15 123456»); ya no se completa con la de la localidad. Los guardados no se tocaron.
+- **Términos y privacidad** (Fase 8): la versión vigente es la más alta de `terms_versions`; cada aceptación
+  (versión y fecha) está en `terms_acceptances`, privada. El texto vive en el front (`src/pages/legal/`) con
+  `TERMS_VERSION` (`src/legal/terms.ts`). Para publicar una versión nueva: cambiar el texto y el número,
+  deployar el front y recién después insertar la fila en `terms_versions`.
+- **Borrar la cuenta** (Fase 8): solo desde la app (Edge Function `delete-account`) y sin nada pendiente. Se
+  borran el usuario de Auth, el perfil, los datos privados, la aceptación de términos, las fotos (perfil y
+  pedidos), los dispositivos y los avisos, y los pedidos propios sin postulaciones. Quedan anónimos los
+  trabajos y las calificaciones con otra persona (ids en null, sin dirección, pin, zona, nota ni fotos), para
+  que su historial y sus estadísticas no cambien; la app muestra «Usuario eliminado». En los avisos de los
+  demás se borran su nombre y, si el pedido era suyo, su dirección y zona.
 
 ### Storage
 - Buckets privados, URLs firmadas. Cada uno escribe solo en su carpeta (`<uid>/...`).
@@ -165,32 +185,47 @@ operada con el MCP (limitado a este proyecto).
 - (Hasta la Fase 6, al publicar un cartel pedía «no pongas la dirección en la nota ni en las fotos»; se
   sacó con la dirección visible.)
 - **Mails:** «Confirm email» desactivado para la beta. SMTP propio pendiente (lo configura el dueño).
+- **Ubicación desde la Fase 8:** el pin y la casa valen en cualquier lugar de Argentina (caja aproximada:
+  latitud −55,1 a −21,7, longitud −73,6 a −53,6, `private.check_in_argentina`; incluye un poco de los países
+  vecinos). Reemplaza el radio de la localidad (`localities.radius_m` ya no se usa). Sin GPS, el mapa arranca
+  en el centro de la localidad por defecto (25 de Mayo) y se puede mover y marcar en cualquier lado.
+- **Trabajos disponibles desde la Fase 8:** `get_available_jobs(origen, radio)` filtra por radio y ordena por
+  distancia en el servidor. Técnica: haversine en SQL (`private.distance_m`, la misma fórmula que el front)
+  con un prefiltro por una caja lat/lng que contiene el círculo, sobre un índice btree parcial de los
+  publicados (`jobs_published_location_idx`). Los publicados son pocos (5 por cliente, vencen en 60 días):
+  el índice es chico y la caja lo vuelve un range scan. PostGIS no hacía falta (sin polígonos ni grandes
+  volúmenes) y sumaba una extensión y un tipo de columna nuevo. Sin aviso de «no hay cortadores cerca».
 
 ### Decisiones tomadas en la Fase 2 (además de lo pedido)
 - El `id` del trabajo lo genera el navegador (`crypto.randomUUID()`) para subir las fotos a
   `job-photos/<uid>/<job_id>/` antes de llamar a `create_job`, igual que el avatar: si la RPC falla,
   se borran. `create_job` verifica que cada foto esté en esa carpeta y exista.
-- Los cortadores ven por RLS solo los trabajos **publicados, no vencidos y de su localidad**. Las fotos
+- Los cortadores ven por RLS solo los trabajos **publicados, no vencidos y de su localidad** (desde la
+  Fase 8, de cualquier localidad: la localidad ya no filtra). Las fotos
   se leen con la misma regla (la política del bucket consulta `jobs` con el RLS del que llama), así que
   un cortador de otra localidad o un cliente sin rol de cortador no ve ni el trabajo ni sus fotos.
   En la Fase 3 se suma: el cortador que se postuló ve el trabajo (y sus fotos) en cualquier estado.
 - Límites: precio entero entre $ 1.000 y $ 5.000.000; fecha entre ahora y 60 días; zona 2–80 letras
   (opcional desde la Fase 7); calle 2–120, número 1–10 («s/n» vale), entre calles 3–120 (Fase 7); nota
   hasta 500; hasta 5 fotos; hasta 5 pedidos publicados a la vez por cliente (anti-spam).
-- `jobs.locality_id` se copia del perfil del cliente al publicar.
+- `jobs.locality_id` se copia del perfil del cliente al publicar (desde la Fase 8 es siempre la de por
+  defecto: solo da la zona horaria).
 
 ## Modelo de datos
 
 ### Existente
 - `localities` (0002): id, slug, name, province, timezone, phone_area_code, is_active. Lectura: logueados.
-  Fase 7 (0024): center_lat, center_lng, radius_m (validan los pines; el mapa arranca en el centro).
+  Fase 7 (0024): center_lat, center_lng, radius_m (validaban los pines; el mapa arranca en el centro).
+  Fase 8 (0026): `is_default` (una sola: 25 de Mayo). `radius_m` y `phone_area_code` ya no se usan.
 - `profiles` (0003): id = auth.users.id, locality_id, first_name, last_initial, avatar_path, is_client,
-  is_cutter. Lectura: logueados.
+  is_cutter. Lectura: logueados. Fase 8: `locality_id` lo pone `upsert_my_profile` (la de por defecto en un
+  perfil nuevo); trigger `profiles_before_delete` (`private.before_profile_delete`, ver «Borrar la cuenta»).
 - `profile_private` (0003): user_id, last_name, phone_e164. Lectura: solo el dueño.
-  Fase 7 (0024): base_lat, base_lng (ubicación base del cortador, opcional; se escribe con
-  `set_my_base_location` y se borra sola si cambia la localidad).
+  Fase 7 (0024): base_lat, base_lng (ubicación base del cortador; se escribe con `set_my_base_location`).
+  Fase 8 (0026): `search_radius_km` (5, 10, 20 o 50; 20 por defecto). La casa pasa a ser obligatoria para
+  cortar (0027) y ya no se borra al cambiar de localidad (la localidad no se elige).
 - Bucket `avatars` (0004): privado, 2 MB, jpeg/png/webp. Lectura: logueados; escritura: carpeta propia.
-- `jobs` (0005): id, client_id → profiles, locality_id, zone, price_ars, desired_at, notes,
+- `jobs` (0005): id, client_id → profiles (Fase 8: null si el cliente borró su cuenta), locality_id, zone, price_ars, desired_at, notes,
   photo_paths text[] (≤ 5, todas en `<client_id>/<id>/`), status
   (`publicado|asignado|realizado|cancelado`), republished_from → jobs, cancelled_at, cancelled_by,
   created_at, updated_at. Computed field `is_expired`.
@@ -201,6 +236,9 @@ operada con el MCP (limitado a este proyecto).
   cortadores que se postularon (cualquier estado), en una sola política SELECT (0009, ampliada en 0010).
   `cancelled_by` solo guarda al cliente: si cancela el cortador elegido queda null (lo verían los
   no elegidos) y el autor va en `job_agreements.cancelled_by` (0020).
+  Fase 8 (0026): `client_id` y `address_street` pueden ser null (cuenta borrada); checks
+  `jobs_deleted_client_check` (sin cliente, solo realizado o cancelado) y `jobs_address_street_required_check`.
+  La política SELECT pasó a «Trabajos: el dueño, los cortadores y los postulados» (`private.i_am_cutter()`).
   **Embeds:** con `job_agreements` hay caminos indirectos entre jobs, applications y profiles: siempre
   nombrar la relación (`applications!applications_job_id_fkey(...)`, `job:jobs!applications_job_id_fkey(...)`,
   `client:profiles!jobs_client_id_fkey(...)`, `agreement:job_agreements!job_agreements_job_id_fkey(...)`).
@@ -229,6 +267,7 @@ operada con el MCP (limitado a este proyecto).
   dedupe_key: `postulacion_nueva:<app>:<attempt>`, `postulacion_editada:<app>:<attempt>:<edits>`,
   `postulacion_retirada:<app>:<attempt>`, `pedido_cancelado:<job>`, `trabajo_realizado:<job>`.
 - `ratings` (0021): job_id, rater_id, ratee_id, would_work_again, created_at; PK (job_id, rater_id).
+  Fase 8 (0026): PK `id` (identity) + único (job_id, rater_id); rater_id y ratee_id pueden ser null.
   RLS sin políticas y sin grants: nadie las lee, ni las partes. Solo se usan dentro de
   `private.profile_stats`.
 
@@ -238,15 +277,24 @@ operada con el MCP (limitado a este proyecto).
   `save_push_subscription` / `delete_push_subscription`; la lee la Edge Function `send-push` con la clave
   de servicio. Hasta 10 dispositivos por persona.
 - `notifications.pushed_at` (0022): cuándo `send-push` reclamó el aviso (sale una sola vez).
+- **Fase 8 (0026), claves foráneas para borrar cuentas:** `jobs.client_id`, `applications.cutter_id`,
+  `job_agreements.client_id/cutter_id` y `ratings.rater_id/ratee_id` → profiles con **on delete set null**
+  (antes cascade: borrar a alguien se llevaba el historial de la otra parte). Mismos nombres de FK (los embeds
+  de PostgREST los usan). `applications_deleted_cutter_check`: sin cortador, nunca pendiente.
+- `terms_versions` (0026): version (PK), published_at. Lectura: logueados. Vigente = la más alta.
+- `terms_acceptances` (0026): user_id → auth.users (cascade), version → terms_versions, accepted_at;
+  PK (user_id, version) = historial. Lectura: solo el dueño. Se escribe con el trigger
+  `accept_terms_on_signup` (auth.users, con `terms_version` en los metadatos del registro) o con `accept_terms`.
+  Va aparte de `profile_private` porque se acepta al registrarse, antes de que exista el perfil.
 
 ## RPCs
 
 | RPC | Fase | Qué hace |
 |-----|------|----------|
-| `upsert_my_profile` | 1 (+2, +3, +4) | Crea/actualiza el perfil propio. Fase 2: no deja sacar el rol de cliente con trabajos publicados o asignados. Fase 3: idem cortador con postulaciones activas. Fase 4: no deja cambiar de localidad con pedidos publicados/asignados ni postulaciones pendientes/aceptadas. |
+| `upsert_my_profile(p_first_name, p_last_name, p_phone_e164, p_is_client, p_is_cutter, p_avatar_path)` | 1 (+2, +3, +4, +8) | Crea/actualiza el perfil propio. Fase 2: no deja sacar el rol de cliente con trabajos publicados o asignados. Fase 3: idem cortador con postulaciones activas. Fase 8: firma sin localidad (la de por defecto en un perfil nuevo) y sin la regla de no cambiarla; la firma vieja (con `p_locality_id`, Fase 4) se borra en 0027. |
 | `create_job(p_id, p_location_lat, p_location_lng, p_address_street, p_address_number, p_price_ars, p_desired_at, p_address_between, p_zone, p_notes, p_photo_paths, p_republished_from)` | 2 (+7) | Publica un trabajo (id generado por el front). Fase 7: pin obligatorio dentro del radio de la localidad, calle y número en `jobs`, zona opcional. |
 | `update_job(p_job_id, p_location_lat, …)` | 2 (+3, +7) | Edita un trabajo publicado propio (también vencido). Fase 3: falla si hay postulaciones pendientes. Fase 7: mismas validaciones de ubicación que `create_job`. |
-| `set_my_base_location(p_lat, p_lng)` | 7 | Guarda la ubicación base del que llama (dentro del radio de su localidad) o la borra con los dos en null. |
+| `set_my_base_location(p_lat, p_lng)` | 7 (+8) | Guarda la ubicación base del que llama (Fase 8: en cualquier lugar de Argentina). Con los dos en null la borra, salvo a un cortador (0027). |
 | `cancel_job` | 2 (+3, +4) | Publicado: solo el cliente; cancela las pendientes y avisa. Asignado (Fase 4): el cliente o el cortador aceptado; la aceptada pasa a cancelada y avisa a la otra parte. |
 | `apply_to_job`, `update_application`, `withdraw_application` | 3 | Postularse (reusa la fila si estaba retirada), editar, retirar. Bloqueos: perfil `FOR SHARE` → trabajo `FOR SHARE` → postulación `FOR UPDATE`. Avisan al cliente. Hasta 20 pendientes por cortador. |
 | `mark_notifications_read(p_ids default null)` | 3 | Marca avisos propios como leídos (los indicados o todos). Devuelve cuántos. |
@@ -259,6 +307,20 @@ operada con el MCP (limitado a este proyecto).
 | `get_profile_stats(p_user_id)` | 5 | done_as_cutter, done_as_client y yes_pct (null con menos de 5; lote semanal; redondeado a la decena). Nunca la cantidad. |
 | `save_push_subscription(p_endpoint, p_p256dh, p_auth)` | 6 | Guarda o actualiza el dispositivo del que llama (requiere perfil). Si el endpoint era de otra cuenta, pasa a la actual (el endpoint es del dispositivo). Valida servicio de push y formato de claves. Deja los 10 más recientes. |
 | `delete_push_subscription(p_endpoint)` | 6 | Saca un dispositivo propio (desactivar avisos o cerrar sesión). Devuelve si había algo. |
+| `accept_terms(p_version)` | 8 | Guarda la aceptación de la versión vigente (falla si `p_version` no es la vigente: el front muestra otro texto). |
+| `get_my_terms_status()` | 8 | Versión vigente y si el que llama la aceptó. |
+| `get_available_jobs(p_lat, p_lng, p_radius_km)` | 8 | **SECURITY INVOKER** (respeta el RLS de jobs): ids y distancia en metros de los publicados no vencidos a menos de 5/10/20/50 km del origen, del más cercano al más lejano (hasta 200; sin los propios). Solo cortadores. |
+| `set_my_search_radius(p_km)` | 8 | Guarda el radio de búsqueda (5, 10, 20 o 50). |
+| `get_my_pending_items()` | 8 | Lo que impide borrar la cuenta: pedidos publicados (también vencidos) o asignados, postulaciones pendientes o aceptadas en un trabajo asignado (`private.pending_items`). |
+| `delete_account(p_user_id)` | 8 | **Solo service_role** (la llama `delete-account`): rechaza con pendientes (hint `pendientes`), borra el perfil (el trigger anonimiza) y la aceptación, y devuelve los archivos de sus carpetas para borrarlos por la API de Storage. |
+
+Fase 8 (0026), en todas las RPCs: las comparaciones con ids que pueden ser null usan `is distinct from`
+(con `<>` o `not in` un null dejaba pasar el `if`: cualquiera podía calificar un trabajo de alguien borrado).
+`rate_job` rechaza si la otra parte borró su cuenta; `get_job_contact` no devuelve filas; `get_job_applicants`
+devuelve a los borrados sin nombre ni foto; `private.notify` no avisa a un destinatario null. Las RPCs de
+escritura llaman a `private.require_terms` (apagado hasta 0027) salvo las que sirven para irse: `cancel_job`,
+`withdraw_application`, `delete_push_subscription`, `mark_notifications_read` y el borrado.
+`apply_to_job` ya no compara localidades y pide la casa (0027).
 
 ## Fases
 
@@ -603,6 +665,103 @@ Verificación (15/10/2026, con el esquema final, después de 0025):
   y los días fuera de rango siguen deshabilitados. Se midió con una página temporal que solo muestra el
   campo (sin usuarios de prueba) y se borró después.
 
+### Fase 8 · Términos y privacidad, borrar la cuenta, cualquier ciudad (paso 1 y front listos; falta deploy y 0027)
+Pedido del dueño antes de abrir a usuarios reales. Cambia decisiones anteriores: la localidad deja de
+filtrar y de elegirse; la visibilidad pasa a ser por distancia.
+
+- [x] Páginas públicas `/terminos`, `/privacidad` y `/borrar-cuenta` (borrador en criollo para revisar con un
+  abogado; contacto pastocontrol@gmail.com), linkeadas desde el registro, el ingreso y el perfil. En el registro
+  y en la pantalla de aceptación se abren en un modal (pantalla completa en el celular) para no perder el formulario.
+- [x] Versionado: `terms_versions` / `terms_acceptances`; casilla obligatoria en el registro (la aceptación viaja
+  en el `signUp` y la guarda un trigger); `RequireTerms` pide aceptar a quien no aceptó la vigente (los usuarios
+  existentes, la primera vez). Si el front es más viejo que la versión vigente, pide recargar.
+- [x] Validación en la base: `private.require_terms` en las RPCs de escritura (se prende en 0027).
+- [x] Borrar la cuenta: botón en el perfil (zona aparte, en rojo) → `/cuenta/borrar`: lista de pendientes con un
+  link a cada uno (no se cancela nada solo), contraseña, modal final. Edge Function `delete-account` →
+  `delete_account` → Storage → Auth. Página `/cuenta-borrada`; el dispositivo queda limpio (push, preferencias,
+  sesión).
+- [x] FK a profiles con `on delete set null`, PK de `ratings`, checks y RPCs revisadas para ids en null (0026).
+- [x] Cualquier ciudad: pin y casa en todo el país; sin localidad en el onboarding ni en el perfil; casa
+  obligatoria para cortar (paso del onboarding y, a los cortadores que no la tienen, antes de ver los trabajos);
+  teléfono con característica obligatoria; «Usuario eliminado» en tarjetas, detalle, postulantes, contacto y avisos.
+- [x] Trabajos disponibles por radio (5/10/20/50 km, 20 por defecto, guardado en la cuenta) desde la ubicación
+  actual o la casa (si el GPS falla, desde la casa, con un aviso); filtro y orden en el servidor.
+
+Orden de deploy (como la Fase 7, sin ventana rota):
+1. **0026 (hecho, 16/10/2026)**: no rompe el front deployado. Agrega tablas, columnas, RPCs y la firma nueva de
+   `upsert_my_profile` al lado de la vieja; el RLS deja ver los publicados a todos los cortadores (el front
+   viejo igual filtra por localidad y todos tienen 25 de Mayo); el pin vale en todo el país (el front viejo
+   igual lo limita a 25 de Mayo); los interruptores de términos y casa quedan apagados. Las FK y la PK de
+   `ratings` se rehicieron con DROP CONSTRAINT (aprobado por el dueño): sin perder datos y con los mismos nombres.
+   Edge Function `delete-account` deployada y `send-push` redeployada (texto con «Usuario eliminado»).
+2. **Deploy del front nuevo (lo hace el dueño)**: anda con 0026 solo (probado así en el navegador).
+3. **0027 (destructivo, requiere aprobación)**: prende términos y casa obligatorios, borra la firma vieja de
+   `upsert_my_profile`, `private.my_cutter_locality_id` y el índice `jobs_available_idx`. Después de 0027 el
+   front viejo (si quedó abierto o en caché) no puede guardar el perfil ni escribir sin aceptar los términos.
+
+Decisiones de la Fase 8 (planteadas al dueño y aprobadas antes de implementar):
+- Quien no aceptó la versión vigente igual puede irse: cancelar, retirar, desactivar avisos, marcar avisos
+  leídos y borrar la cuenta (Ley 25.326: no se condiciona el borrado). La pantalla de aceptación ofrece «Quiero
+  borrar mi cuenta» y deja entrar solo a `/cuenta/borrar` y a los detalles de pedidos y trabajos.
+- La aceptación va en una tabla privada aparte (al registrarse todavía no existe `profile_private`).
+- La validación de términos y de la casa en la base se prende recién en 0027 (antes trabaría al front viejo).
+- Borrar desde el panel de Supabase pasa por el mismo trigger: anonimiza igual y falla si hay pendientes (no
+  borra los archivos de Storage: eso lo hace solo la Edge Function). Para la limpieza de pruebas, si hiciera
+  falta, `sql/tests/cerrar_pendientes_prueba.sql`.
+- Un pedido queda en la base mientras le quede alguna de las partes; cuando se van todas, se borra entero.
+- `delete_account` solo la ejecuta service_role: así la contraseña se verifica siempre (alguien con el celular
+  desbloqueado no puede borrar la cuenta sin ella).
+- La contraseña se verifica en la función con un `signInWithPassword` aparte; la sesión que abre se cierra.
+
+Verificación (16/10/2026, con 0026 y el estado final de 0027 simulado dentro de cada prueba SQL):
+- SQL: `fase8_seguridad.sql` 111/111: pendientes (publicado, vencido, postulación pendiente y aceptada)
+  bloquean el borrado por la RPC y desde el panel; nadie puede borrar a otro (anon, otro usuario, ni el propio
+  sin la Edge Function); sin aceptar, D igual cancela, retira y se va; después del borrado no queda NINGÚN dato
+  de D en ninguna columna de texto, json, uuid o array de `public`, `auth` y `storage` (con control positivo
+  antes), ni archivos; las estadísticas de la otra parte quedan iguales (80 % y 60 %, con 5 calificaciones de la
+  semana pasada); trabajos, acuerdos y calificaciones anónimos; avisos sin nombre ni dirección; contacto y
+  calificación con alguien borrado; un pedido sin partes se borra; radio 5/10/20/50 con orden exacto y bordes
+  (4,9 y 5,1 km); términos en las 11 RPCs de escritura, las 4 exentas, versión nueva, historial y el trigger del
+  registro (versión vigente, otra y basura).
+  Fases anteriores, adaptadas (firma nueva del perfil, términos aceptados y casa cargada; lo que verificaba que
+  otra localidad no veía nada ahora verifica que la ve y que igual no recibe teléfonos, apellidos ni casas):
+  fase1 37/37, fase2 98/98, fase3 96/96, fase4 82/82 (la regla de cambiar de localidad se reemplazó por la casa
+  obligatoria y la localidad que no se toca), fase5 61/61, fase6 50/50, fase7 75/75 (radio de la localidad →
+  fuera de Argentina). Total 610/610. Sin rastro después (interruptores apagados, sin usuarios ni filas de prueba).
+- Red (sesiones reales): `verificar-red-fase8.mjs` 31/31: preflight CORS; sin sesión 401; token inventado 401;
+  contraseña de otra cuenta 403; contraseña equivocada 403; con pendientes 409 sin borrar nada; con todo
+  cancelado 200 borrando solo a quien llama aunque el cuerpo traiga el id de otro; después: no puede entrar, sus
+  fotos no existen, el trabajo sigue para la otra parte sin datos, sus estadísticas iguales, ninguna de las 20
+  respuestas posteriores trae datos del borrado; registro con y sin la casilla; radio con sesiones reales.
+  Fases 2 21/21, 3 31/31, 4 27/27, 5 29/29, 7 27/27; carrera 6 escenarios × 30 rondas, 0 invariantes rotas y
+  los dos desenlaces en todos.
+- Navegador a 360 px (iframe; `ui.localhost:5173`): registro sin la casilla (error) y con ella (modal de términos
+  sin perder el formulario) → onboarding de los dos roles → teléfono sin característica rechazado → casa con GPS
+  simulado en Rosario → publicar con el pin en Córdoba (en la base, -31.4201, -64.1888); usuario existente sin
+  aceptar: bloqueado también entrando por URL, error sin la casilla, acepta y entra; borrar cuenta: bloqueado con
+  la lista (postulación y pedido), retira y cancela desde los links, contraseña equivocada rechazada, borrado →
+  «Borramos tu cuenta» y nada en la base; cortador en Rosario: 20 km (3 y 8 km), 5 km (3 km), 50 km (3, 8 y 30 km
+  en orden, guardado), mapa con «Tu casa», «Mi ubicación actual»; trabajo realizado cuyo cliente se borró:
+  «Usuario eliminado», «Dirección borrada», sin contacto ni calificación, avisos con «Usuario eliminado». Sin
+  scroll horizontal, sin textos cortados y sin botones de menos de 44 px (medido en cada pantalla; corregidos en
+  la prueba: «Términos»/«Privacidad» del perfil y un botón de `/borrar-cuenta` se cortaban, Lista/Mapa medían 42).
+  No probado en el navegador: el GPS denegado sin una ubicación previa (cae a la casa; el permiso real hubiera
+  abierto un diálogo del navegador).
+- `tsc -b` y build sin errores. `database.types.ts` regenerado (sin la firma vieja de `upsert_my_profile`, que
+  se va en 0027). Funciones deployadas iguales a los archivos del repo.
+- Advisors: 0029 en 23 RPCs (por diseño; 22 después de 0027), `push_subscriptions` y `ratings` con RLS sin
+  políticas (a propósito), «leaked password protection», índice sin uso (`profiles_locality_id_idx`).
+  `delete_account` no figura: authenticated no la puede ejecutar.
+- Limpieza: los usuarios de la prueba del navegador se borraron con la Edge Function (con sus archivos). El
+  `delete` de los demás usuarios de prueba (sin archivos ni pendientes) lo rechazó el MCP con «Invalid or expired
+  requestState»: queda para correr con el dueño presente.
+
+Front: `src/legal/` (terms, TermsGate), `src/pages/legal/` (Términos, Privacidad, BorrarCuentaInfo, LegalLinks,
+LegalParts), `src/account/` (deleteAccount, BorrarCuentaPage, CuentaBorradaPage), `src/profile/BaseLocationStep.tsx`;
+cambios en router, Registrarse, Ingresar, Bienvenida, Perfil, ProfileForm, BaseLocationCard, TrabajosPage,
+jobs/queries, JobCard, JobForm, LocationField, geo, phone, AssignedPanel, ApplicantsList, ApplicationPanel,
+TrabajoDetalle, Nuevo/Editar pedido, PersonaPage, describe y `send-push`.
+
 ### Pendientes futuros (sin fase asignada)
 - Limpieza de fotos huérfanas en `job-photos`: archivos subidos cuyo `create_job` nunca se completó
   (se cerró la app, se cortó la red entre la subida y la RPC). Hoy el front borra lo subido si la RPC
@@ -614,13 +773,19 @@ Verificación (15/10/2026, con el esquema final, después de 0025):
   lo marcó realizado), aviso a las dos partes para que lo marquen. Necesita un proceso programado
   (pg_cron o Edge Function con cron) que inserte el aviso con `private.notify` y una dedupe_key por trabajo.
 - Mejorar la interfaz (hoy muy simple). Va al final, cuando el flujo esté cerrado.
-- Antes de abrir a usuarios reales: SMTP propio en Supabase, borrar la cuenta, política de privacidad y
-  términos, y pasar el SQL de `sql/` a migraciones versionadas con la CLI.
+- Antes de abrir a usuarios reales: SMTP propio en Supabase, revisión de los términos y la privacidad con un
+  abogado (sugerencias: edad mínima, quién es el responsable de los datos y su domicilio, inscripción de la base
+  en la AAIP, transferencia internacional por los servidores de Supabase y Vercel), y pasar el SQL de `sql/` a
+  migraciones versionadas con la CLI.
+- Columnas que ya no se usan desde la Fase 8 (`localities.radius_m`, `localities.phone_area_code`): se pueden
+  borrar más adelante (destructivo, con aprobación).
 
 ## Verificación al cerrar cada fase
 - Pruebas SQL con varios usuarios (dueño, cortador, tercero y anon) sobre cada política y RPC nueva.
 - Revisar las respuestas de red como usuario sin permiso: el teléfono, el apellido y la ubicación base
   ajenos no aparecen nunca; la dirección, solo para quien ve el pedido.
+- Las pruebas SQL simulan el estado final (términos y casa obligatorios) y cada usuario de prueba acepta los
+  términos (y los cortadores cargan su casa): seguir el mismo patrón en las nuevas.
 - `tsc -b` y el build sin errores. Sin scroll horizontal a 360 px.
 - Listar los SQL nuevos y lo ejecutado. Revisar los advisors de Supabase.
 - Actualizar este archivo.
@@ -660,7 +825,11 @@ Verificación (15/10/2026, con el esquema final, después de 0025):
 | `sql/tests/fase6_seguridad.sql` | 6 | 50 casos |
 | `sql/0024_ubicacion_y_direccion_visible.sql` | 7 | No destructivo: centro y radio de las localidades, `private.distance_m` / `check_location`, dirección y pin en `jobs` (copia de `job_private`), `zone` opcional, ubicación base en `profile_private`, `create_job` / `update_job` con firma nueva, `set_my_base_location`, `private.notify` con `address`, `upsert_my_profile` borra la ubicación base si cambia la localidad |
 | `sql/0025_borrar_job_private.sql` | 7 | **Destructivo, requiere aprobación:** vuelve a copiar la dirección, `address_street` not null, borra las firmas viejas de `create_job` / `update_job` / `check_job_input`, `get_job_contact` sin dirección y la tabla `job_private` |
-| `sql/tests/fase7_seguridad.sql` | 7 | 73 casos |
+| `sql/tests/fase7_seguridad.sql` | 7 | 73 casos (75 desde la Fase 8) |
+| `sql/0026_terminos_borrado_y_distancia.sql` | 8 | Paso 1, no rompe el front viejo: localidad por defecto, `check_in_argentina`, términos (tablas, `require_terms` apagado, `accept_terms`, `get_my_terms_status`, trigger del registro), casa obligatoria (apagada), radio, `get_available_jobs` e índice, RLS de jobs sin localidad, `upsert_my_profile` sin localidad, FK con set null y PK de `ratings` (DROP CONSTRAINT aprobado), `pending_items`, trigger de borrado, `delete_account`, RPCs con ids que pueden ser null |
+| `sql/0027_terminos_y_casa_obligatorios.sql` | 8 | **Destructivo, requiere aprobación; después del deploy del front:** prende términos y casa obligatorios, borra la firma vieja de `upsert_my_profile`, `my_cutter_locality_id` y `jobs_available_idx` |
+| `sql/tests/fase8_seguridad.sql` | 8 | 111 casos |
+| `sql/tests/cerrar_pendientes_prueba.sql` | 8 | Solo si hace falta antes de la limpieza: cancela lo pendiente de los usuarios de prueba (no borra nada) |
 | `sql/tests/limpiar_usuarios_prueba.sql` | 1 | Borra usuarios de pruebas de punta a punta |
 
 Scripts (revisan las respuestas de red con sesiones reales; crean usuarios `pastocontrol.prueba.*`
@@ -674,6 +843,13 @@ que después se borran con `sql/tests/limpiar_usuarios_prueba.sql`):
 - `node scripts/verificar-red-fase7.mjs` (Fase 7: dirección visible, pin, ubicación base, radio).
 - `node scripts/preparar-prueba-mapa.mjs` (Fase 7: crea un cliente con 4 pedidos en distintos puntos y un
   cortador con su casa, e imprime los mails y la contraseña para probar el mapa en el navegador).
+- `node scripts/verificar-red-fase8.mjs` (Fase 8: Edge Function `delete-account`, términos y radio; antes de las
+  23:40 hora local).
+- `node scripts/preparar-prueba-fase8.mjs` (Fase 8: usuario sin aceptar los términos, uno con pendientes para
+  borrar, un cortador en Rosario y pedidos a 3, 8 y 30 km).
+
+Desde la Fase 8 todos los scripts se registran con la casilla de términos (`terms_version` en el `signUp`), usan la
+firma nueva de `upsert_my_profile` y cargan la casa de los cortadores, así andan con 0026 y después de 0027.
 
 Desde la Fase 7 los scripts de las fases 2–5 publican con pin y ya no tratan la dirección como secreta
 para los cortadores que ven el pedido (sí para anon y para quien no lo ve); siguen controlando apellidos

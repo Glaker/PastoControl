@@ -13,6 +13,9 @@
 -- Las calificaciones "de la semana pasada" para probar el lote semanal se insertan como admin con
 -- created_at antes del lunes 00:00 de esta semana (zona de la localidad), en pedidos de relleno.
 --
+-- Fase 8: estado final de 0027 simulado dentro de la prueba (términos y ubicación base obligatorios;
+-- se deshace con el resto). Todos aceptaron los términos y los cortadores tienen su casa.
+--
 -- Esperado: 'ok' | 'err:<fragmento>' | 'count:<n>' | 'affected:<n>'
 
 do $test$
@@ -41,6 +44,8 @@ declare
 begin
   select id, timezone into loc, tz from public.localities where slug = '25-de-mayo-bsas';
   last_week := (date_trunc('week', now() at time zone tz) at time zone tz) - interval '1 day';
+  execute $f$create or replace function private.terms_enforced() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
+  execute $f$create or replace function private.cutter_base_required() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
 
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
   select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', m, '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}'
@@ -48,6 +53,7 @@ begin
     (a, 'prueba-a@pastocontrol.test'), (b, 'prueba-b@pastocontrol.test'), (b2, 'prueba-b2@pastocontrol.test'),
     (c, 'prueba-c@pastocontrol.test')
   ) as v(u, m);
+  insert into public.terms_acceptances (user_id, version) select u, private.current_terms_version() from unnest(array[a, b, b2, c]) u;
   insert into storage.objects (bucket_id, name, owner_id) values
     ('avatars', b || '/yo.jpg', b), ('avatars', b2 || '/yo.jpg', b2);
   insert into public.profiles (id, locality_id, first_name, last_initial, avatar_path, is_client, is_cutter) values
@@ -55,9 +61,9 @@ begin
     (b, loc, 'Beto', 'B', b || '/yo.jpg', false, true),
     (b2, loc, 'Bruno', 'B', b2 || '/yo.jpg', false, true),
     (c, loc, 'Carla', 'C', null, true, false);
-  insert into public.profile_private (user_id, last_name, phone_e164) values
-    (a, 'Álvarez', '+5492345111111'), (b, 'Benítez', '+5492345222222'), (b2, 'Bustos', '+5492345222333'),
-    (c, 'Castro', '+5492345333333');
+  insert into public.profile_private (user_id, last_name, phone_e164, base_lat, base_lng) values
+    (a, 'Álvarez', '+5492345111111', null, null), (b, 'Benítez', '+5492345222222', -35.43, -60.17),
+    (b2, 'Bustos', '+5492345222333', -35.43, -60.17), (c, 'Castro', '+5492345333333', null, null);
 
   insert into public.jobs (id, client_id, locality_id, zone, address_street, address_number, location_lat, location_lng, price_ars, desired_at) values
     (j1, a, loc, 'Barrio Centro', 'Calle Falsa', '123', -35.4324, -60.1716, 15000, now() + interval '2 days'),

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useUserId } from '../auth/AuthProvider';
 import dayjs from '../lib/dayjs';
-import { pointOf, type LatLng, type LocalityArea } from '../lib/geo';
+import { pointOf, type LatLng, type MapCenter } from '../lib/geo';
 import { supabase } from '../lib/supabase';
 
 export type JobStatus = 'publicado' | 'asignado' | 'realizado' | 'cancelado';
@@ -16,21 +16,25 @@ export type JobDisplayStatus = JobStatus | 'vencido';
 // applications y PostgREST lo vería como otra relación posible.
 // agreement: el acuerdo (job_agreements). Por RLS solo lo reciben el cliente y el cortador elegido;
 // para cualquier otro llega null.
+// Si alguien borró su cuenta (Fase 8), su id queda en null (client y client_id, agreement.cutter_id,
+// applications.cutter_id) y el pedido, sin dirección ni pin: la app muestra «Usuario eliminado».
 export const JOB_SELECT =
   'id, client_id, locality_id, zone, address_street, address_number, address_between, location_lat, location_lng, ' +
   'price_ars, desired_at, notes, photo_paths, status, republished_from, cancelled_at, cancelled_by, created_at, updated_at, is_expired, ' +
   'agreement:job_agreements!job_agreements_job_id_fkey(application_id, cutter_id, price_ars, agreed_at, assigned_at, done_at, done_by, cancelled_by), ' +
-  'locality:localities(name, timezone, center_lat, center_lng, radius_m), client:profiles!jobs_client_id_fkey(id, first_name, last_initial, avatar_path), ' +
+  'locality:localities(timezone, center_lat, center_lng), client:profiles!jobs_client_id_fkey(id, first_name, last_initial, avatar_path), ' +
   'applications!applications_job_id_fkey(id, status, cutter_id)';
 
 export type Job = {
   id: string;
-  client_id: string;
+  /** null: el cliente borró su cuenta. */
+  client_id: string | null;
   locality_id: number;
   /** Zona o barrio (opcional). */
   zone: string | null;
-  address_street: string;
-  /** null solo en los pedidos anteriores al mapa (la dirección entera está en address_street). */
+  /** null solo si el cliente borró su cuenta (el pedido queda sin sus datos). */
+  address_street: string | null;
+  /** null en los pedidos anteriores al mapa (la dirección entera está en address_street). */
   address_number: string | null;
   address_between: string | null;
   /** Pin del pedido (null solo en los anteriores al mapa). */
@@ -49,14 +53,18 @@ export type Job = {
   is_expired: boolean | null;
   /** Acuerdo (desde la aceptación; queda como historial si después se cancela). Solo las dos partes. */
   agreement: JobAgreement | null;
-  locality: { name: string; timezone: string } & LocalityArea;
-  client: { id: string; first_name: string; last_initial: string; avatar_path: string | null };
-  applications: { id: string; status: ApplicationStatus; cutter_id: string }[];
+  /** Solo la zona horaria y el centro del mapa (la localidad ya no filtra nada). */
+  locality: { timezone: string } & MapCenter;
+  client: JobClient | null;
+  applications: { id: string; status: ApplicationStatus; cutter_id: string | null }[];
 };
+
+export type JobClient = { id: string; first_name: string; last_initial: string; avatar_path: string | null };
 
 export type JobAgreement = {
   application_id: string;
-  cutter_id: string;
+  /** null: el cortador borró su cuenta. */
+  cutter_id: string | null;
   price_ars: number;
   agreed_at: string;
   assigned_at: string;
@@ -71,13 +79,14 @@ export type ApplicationStatus = 'pendiente' | 'aceptada' | 'rechazada' | 'retira
 export const jobKeys = {
   all: ['jobs'] as const,
   mine: (userId: string) => ['jobs', 'mine', userId] as const,
-  available: (userId: string) => ['jobs', 'available', userId] as const,
+  available: (userId: string, origin: LatLng | null, radiusKm: number) =>
+    ['jobs', 'available', userId, origin?.lat, origin?.lng, radiusKm] as const,
   detail: (jobId: string) => ['jobs', 'detail', jobId] as const,
 };
 
 export function toJob(row: unknown): Job {
   const job = row as Job;
-  if (!job.locality || !job.client) throw new Error('Pedido incompleto');
+  if (!job.locality) throw new Error('Pedido incompleto');
   return job;
 }
 
@@ -99,27 +108,39 @@ export function useMyJobs() {
   });
 }
 
-/** Trabajos que puede tomar el cortador logueado (sin los propios: con los dos roles también los ve). */
-export function useAvailableJobs(localityId: number | undefined) {
+export type AvailableJob = { job: Job; distanceM: number };
+
+/**
+ * Trabajos que puede tomar el cortador logueado, a menos de radiusKm del origen (su ubicación actual o su
+ * casa), del más cercano al más lejano. El filtro y el orden los hace el servidor (get_available_jobs);
+ * después se traen los pedidos con el select de siempre y se respeta ese orden.
+ */
+export function useAvailableJobs(origin: LatLng | null, radiusKm: number) {
   const userId = useUserId();
   return useQuery({
-    queryKey: [...jobKeys.available(userId), localityId],
-    queryFn: async () => {
-      // El RLS también devuelve los trabajos en los que me postulé (en cualquier estado): la lista
-      // filtra publicados, no vencidos (reloj del servidor) y de mi localidad.
-      const { data, error } = await supabase
+    queryKey: jobKeys.available(userId, origin, radiusKm),
+    queryFn: async (): Promise<AvailableJob[]> => {
+      const { data: near, error } = await supabase.rpc('get_available_jobs', {
+        p_lat: origin!.lat,
+        p_lng: origin!.lng,
+        p_radius_km: radiusKm,
+      });
+      if (error) throw error;
+      if (near.length === 0) return [];
+      const { data, error: jobsError } = await supabase
         .from('jobs')
         .select(JOB_SELECT)
-        .eq('status', 'publicado')
-        .eq('is_expired', false)
-        .eq('locality_id', localityId!)
-        .neq('client_id', userId)
-        .order('desired_at', { ascending: true })
-        .limit(200);
-      if (error) throw error;
-      return data.map(toJob);
+        .in('id', near.map((n) => n.job_id));
+      if (jobsError) throw jobsError;
+      const byId = new Map(data.map((row) => [(row as unknown as Job).id, toJob(row)]));
+      // Puede faltar alguno si venció o se canceló entre los dos pedidos.
+      return near.flatMap((n) => {
+        const job = byId.get(n.job_id);
+        return job ? [{ job, distanceM: n.distance_m }] : [];
+      });
     },
-    enabled: localityId !== undefined,
+    enabled: !!origin,
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -182,6 +203,7 @@ export function jobDisplayStatus(job: Pick<Job, 'status' | 'is_expired' | 'desir
 
 /** "Mitre 1234" (en los pedidos anteriores al mapa, la dirección tal como se cargó). */
 export function jobAddress(job: Pick<Job, 'address_street' | 'address_number'>): string {
+  if (!job.address_street) return 'Dirección borrada';
   return job.address_number ? `${job.address_street} ${job.address_number}` : job.address_street;
 }
 

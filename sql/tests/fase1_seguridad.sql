@@ -8,7 +8,10 @@
 -- Usuarios:
 --   A = cliente que después agrega el rol de cortador
 --   B = cliente y cortador
---   C = recién registrado, sin perfil
+--   C = recién registrado, sin perfil (y sin aceptar los términos)
+--
+-- Fase 8: firma nueva de upsert_my_profile (sin localidad: se asigna la de por defecto) y estado final
+-- de 0027 simulado dentro de la prueba (términos obligatorios; se deshace con el resto).
 
 do $test$
 declare
@@ -25,10 +28,13 @@ declare
   v_total int := 0;
 begin
   select id into loc from public.localities where slug = '25-de-mayo-bsas';
+  execute $f$create or replace function private.terms_enforced() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
+  execute $f$create or replace function private.cutter_base_required() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
 
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
   select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', e, '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}'
   from (values (a, 'prueba-a@pastocontrol.test'), (b, 'prueba-b@pastocontrol.test'), (c, 'prueba-c@pastocontrol.test')) as v(u, e);
+  insert into public.terms_acceptances (user_id, version) select u, private.current_terms_version() from unnest(array[a, b]) u;
 
   for t in
     select * from (values
@@ -36,21 +42,21 @@ begin
       (1,  'anon', 'anon no puede leer localidades', 'select * from public.localities', 'err:permission denied'),
       (2,  'anon', 'anon no puede leer perfiles', 'select * from public.profiles', 'err:permission denied'),
       (3,  'anon', 'anon no puede leer datos privados', 'select * from public.profile_private', 'err:permission denied'),
-      (4,  'anon', 'anon no puede llamar a upsert_my_profile', format('select public.upsert_my_profile(''X'',''Y'',''+5492345123456'',%s::smallint,true,false)', loc), 'err:permission denied'),
+      (4,  'anon', 'anon no puede llamar a upsert_my_profile', 'select public.upsert_my_profile(''X'',''Y'',''+5492345123456'',true,false)', 'err:permission denied'),
       (5,  'A', 'A ve la localidad activa', 'select * from public.localities', 'count:1'),
-      (6,  'A', 'A crea su perfil de cliente sin foto', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',%s::smallint,true,false)', loc), 'ok'),
-      (7,  'A', 'A no puede ser cortador sin foto', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',%s::smallint,true,true)', loc), 'err:necesitás una foto'),
-      (8,  'A', 'A no puede crear un perfil sin roles', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',%s::smallint,false,false)', loc), 'err:al menos una opción'),
-      (9,  'A', 'A no puede guardar un teléfono inválido', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+54234511'',%s::smallint,true,false)', loc), 'err:no es válido'),
-      (10, 'A', 'A no puede usar una localidad inexistente', 'select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',999::smallint,true,false)', 'err:localidad'),
+      (6,  'A', 'A crea su perfil de cliente sin foto', 'select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',true,false)', 'ok'),
+      (7,  'A', 'A no puede ser cortador sin foto', 'select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',true,true)', 'err:necesitás una foto'),
+      (8,  'A', 'A no puede crear un perfil sin roles', 'select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',false,false)', 'err:al menos una opción'),
+      (9,  'A', 'A no puede guardar un teléfono inválido', 'select public.upsert_my_profile(''Ana'',''Álvarez'',''+54234511'',true,false)', 'err:no es válido'),
+      (10, 'admin', 'El perfil nuevo de A toma la localidad por defecto (ya no se elige)', format('select 1 from public.profiles where id = %L and locality_id = %s', a, loc), 'count:1'),
       (11, 'A', 'A sube una foto a su carpeta', format('insert into storage.objects (bucket_id, name, owner_id) values (''avatars'', %L, %L)', a || '/foto.jpg', a), 'ok'),
       (12, 'A', 'A no puede subir una foto a la carpeta de B', format('insert into storage.objects (bucket_id, name, owner_id) values (''avatars'', %L, %L)', b || '/intrusa.jpg', a), 'err:row-level security'),
       (13, 'A', 'A no puede subir fuera de una carpeta', 'insert into storage.objects (bucket_id, name) values (''avatars'', ''suelta.jpg'')', 'err:row-level security'),
       (14, 'B', 'B sube su foto', format('insert into storage.objects (bucket_id, name, owner_id) values (''avatars'', %L, %L)', b || '/yo.jpg', b), 'ok'),
-      (15, 'A', 'A no puede poner como suya la foto de B', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',%s::smallint,true,true,%L)', loc, b || '/yo.jpg'), 'err:no es tuya'),
-      (16, 'A', 'A no puede apuntar a una foto que no existe', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',%s::smallint,true,true,%L)', loc, a || '/no-existe.jpg'), 'err:No encontramos la foto'),
-      (17, 'A', 'A agrega el rol de cortador con su foto', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',%s::smallint,true,true,%L)', loc, a || '/foto.jpg'), 'ok'),
-      (18, 'B', 'B crea su perfil con los dos roles', format('select public.upsert_my_profile(''Beto'',''Benítez'',''+5492345222222'',%s::smallint,true,true,%L)', loc, b || '/yo.jpg'), 'ok'),
+      (15, 'A', 'A no puede poner como suya la foto de B', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',true,true,%L)', b || '/yo.jpg'), 'err:no es tuya'),
+      (16, 'A', 'A no puede apuntar a una foto que no existe', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',true,true,%L)', a || '/no-existe.jpg'), 'err:No encontramos la foto'),
+      (17, 'A', 'A agrega el rol de cortador con su foto', format('select public.upsert_my_profile(''Ana'',''Álvarez'',''+5492345111111'',true,true,%L)', a || '/foto.jpg'), 'ok'),
+      (18, 'B', 'B crea su perfil con los dos roles', format('select public.upsert_my_profile(''Beto'',''Benítez'',''+5492345222222'',true,true,%L)', b || '/yo.jpg'), 'ok'),
       (19, 'B', 'B ve los perfiles públicos (A y B)', format('select * from public.profiles where id in (%L, %L, %L)', a, b, c), 'count:2'),
       (20, 'B', 'El perfil público de A muestra solo la inicial del apellido', format('select 1 from public.profiles where id = %L and first_name = ''Ana'' and last_initial = ''Á''', a), 'count:1'),
       (21, 'B', 'B solo ve SUS datos privados', 'select * from public.profile_private', 'count:1'),
@@ -67,7 +73,9 @@ begin
       (32, 'C', 'C ve los perfiles públicos', format('select * from public.profiles where id in (%L, %L, %L)', a, b, c), 'count:2'),
       (33, 'anon', 'anon no ve fotos de perfil', 'select * from storage.objects where bucket_id = ''avatars''', 'count:0'),
       (34, 'admin', 'Los datos de A siguen intactos', format('select 1 from public.profiles p join public.profile_private pp on pp.user_id = p.id where p.id = %L and p.first_name = ''Ana'' and pp.phone_e164 = ''+5492345111111'' and p.is_cutter', a), 'count:1'),
-      (35, 'admin', 'profiles no tiene columnas de teléfono ni apellido', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''profiles'' and column_name in (''phone_e164'', ''last_name'')', 'count:0')
+      (35, 'admin', 'profiles no tiene columnas de teléfono ni apellido', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''profiles'' and column_name in (''phone_e164'', ''last_name'')', 'count:0'),
+      (36, 'C', 'C (sin aceptar los términos) no puede crear su perfil', 'select public.upsert_my_profile(''Carla'',''Castro'',''+5492345333333'',true,false)', 'err:aceptar los términos'),
+      (37, 'admin', 'C no quedó con perfil', format('select 1 from public.profiles where id = %L', c), 'count:0')
     ) as x(n, who, label, sql, expected)
     order by n
   loop

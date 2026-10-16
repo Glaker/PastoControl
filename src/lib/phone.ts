@@ -4,35 +4,23 @@ export type PhoneResult = { ok: true; e164: string; display: string } | { ok: fa
 
 /**
  * Normaliza un celular argentino al formato de WhatsApp: +549 + característica + número (10 dígitos).
- * Acepta como lo escribe la gente: "2345 15 123456", "02345-15-123456", "+54 9 2345 123456",
- * o solo el número local ("15 123456" / "123456"), que se completa con la característica de la localidad.
+ * Acepta como lo escribe la gente: "2345 15 123456", "02345-15-123456", "11 2345 6789", "+54 9 2345 123456".
+ * La característica es obligatoria (la app sirve en cualquier ciudad: no hay una para completar).
  */
-export function normalizeArPhone(input: string, localAreaCode: string): PhoneResult {
+export function normalizeArPhone(input: string): PhoneResult {
   const digits = input.replace(/\D/g, '');
   if (!digits) return { ok: false, error: 'Escribí tu número de WhatsApp.' };
 
-  const localLength = 10 - localAreaCode.length;
-  let national: string | null = null;
-
-  // Número local, sin característica.
-  if (!input.trim().startsWith('+') && !digits.startsWith('0')) {
-    if (digits.length === localLength) national = localAreaCode + digits;
-    else if (digits.length === localLength + 2 && digits.startsWith('15')) national = localAreaCode + digits.slice(2);
+  const parsed = parsePhoneNumberFromString(input, 'AR');
+  if (!parsed || parsed.countryCallingCode !== '54') {
+    return { ok: false, error: 'No es un número de Argentina válido. Ej.: 2345 15 123456.' };
   }
-
-  if (!national) {
-    const parsed = parsePhoneNumberFromString(input, 'AR');
-    if (!parsed || parsed.countryCallingCode !== '54') {
-      return { ok: false, error: 'No es un número de Argentina válido. Ej.: 2345 15 123456.' };
-    }
-    let nn = String(parsed.nationalNumber);
-    if (nn.length === 11 && nn.startsWith('9')) nn = nn.slice(1);
-    national = nn;
-  }
+  let national = String(parsed.nationalNumber);
+  if (national.length === 11 && national.startsWith('9')) national = national.slice(1);
 
   // Las características argentinas empiezan con 1, 2 o 3 y, sumadas al número, son 10 dígitos.
   if (!/^[1-3]\d{9}$/.test(national)) {
-    return { ok: false, error: 'El número no está completo. Ej.: 2345 15 123456 (característica y número).' };
+    return { ok: false, error: 'Falta la característica o el número está incompleto. Ej.: 2345 15 123456.' };
   }
 
   const e164 = `+549${national}`;

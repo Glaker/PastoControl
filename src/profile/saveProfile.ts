@@ -5,7 +5,6 @@ export type ProfileInput = {
   firstName: string;
   lastName: string;
   phoneE164: string;
-  localityId: number;
   isClient: boolean;
   isCutter: boolean;
   currentAvatarPath: string | null;
@@ -38,7 +37,6 @@ export async function saveProfile(userId: string, input: ProfileInput): Promise<
     p_first_name: input.firstName,
     p_last_name: input.lastName,
     p_phone_e164: input.phoneE164,
-    p_locality_id: input.localityId,
     p_is_client: input.isClient,
     p_is_cutter: input.isCutter,
     p_avatar_path: avatarPath ?? undefined,

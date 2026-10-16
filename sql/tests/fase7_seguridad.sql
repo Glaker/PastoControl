@@ -11,9 +11,13 @@
 --   D  = cortador de OTRA localidad
 --   E  = registrado sin perfil
 --
--- Puntos (centro de 25 de Mayo: -35.4324152, -60.171624; radio 10 km):
---   dentro: -35.4300, -60.1700 · a 9 km al este: -35.4324, -60.0724 · a 11 km al este: -35.4324, -60.0504
---   Buenos Aires: -34.6037, -58.3816
+-- Fase 8: el pin y la casa valen en cualquier lugar de Argentina (caja lat -55,1 a -21,7, lng -73,6 a
+-- -53,6) y la localidad ya no filtra ni se elige. Los casos del radio de la localidad ahora usan puntos
+-- fuera del país. Firma nueva de upsert_my_profile y estado final de 0027 simulado dentro de la prueba
+-- (términos y ubicación base obligatorios; se deshace con el resto).
+--
+-- Puntos: 25 de Mayo -35.4300, -60.1700 · Buenos Aires -34.6037, -58.3816 · Ushuaia -54.80, -68.30
+--   Fuera: océano Atlántico -40.0, -50.0 · Río de Janeiro -22.90, -43.20 · La Paz (Bolivia) -16.50, -68.15
 --
 -- Esperado: 'ok' | 'err:<fragmento>' | 'count:<n>' | 'affected:<n>' | 'noeffect' (error o 0 filas)
 
@@ -27,6 +31,7 @@ declare
   e uuid := '00000000-0000-4000-a700-00000000000e';
   j1 uuid := '00000000-0000-4000-b700-000000000001';
   j2 uuid := '00000000-0000-4000-b700-000000000002';
+  j3 uuid := '00000000-0000-4000-b700-000000000003';
   j9 uuid := '00000000-0000-4000-b700-000000000009';
   app_b uuid := '00000000-0000-4000-c700-00000000000b';
   app_b2 uuid := '00000000-0000-4000-c700-0000000000b2';
@@ -43,12 +48,14 @@ declare
   cj text := 'select public.create_job(%L, %s, %s, %L, %L, 15000, now() + interval ''2 days'', %L, %L)';
   -- update_job(id, lat, lng, calle, número, precio, fecha, entre calles, zona)
   uj text := 'select public.update_job(%L, %s, %s, %L, %L, 16000, now() + interval ''3 days'', %L, %L)';
-  prof text := 'select public.upsert_my_profile(%L, %L, %L, %s::smallint, %L::boolean, %L::boolean, %L)';
+  prof text := 'select public.upsert_my_profile(%L, %L, %L, %L::boolean, %L::boolean, %L)';
 begin
   select id into loc from public.localities where slug = '25-de-mayo-bsas';
   insert into public.localities (slug, name, province, phone_area_code, center_lat, center_lng, radius_m)
   values ('otra-localidad-prueba', 'Otra', 'Buenos Aires', '2346', -35.0, -60.0, 5000)
   returning id into loc2;
+  execute $f$create or replace function private.terms_enforced() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
+  execute $f$create or replace function private.cutter_base_required() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
 
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
   select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', m, '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}'
@@ -56,6 +63,7 @@ begin
     (a, 'prueba-a@pastocontrol.test'), (b, 'prueba-b@pastocontrol.test'), (b2, 'prueba-b2@pastocontrol.test'),
     (c, 'prueba-c@pastocontrol.test'), (d, 'prueba-d@pastocontrol.test'), (e, 'prueba-e@pastocontrol.test')
   ) as v(u, m);
+  insert into public.terms_acceptances (user_id, version) select u, private.current_terms_version() from unnest(array[a, b, b2, c, d, e]) u;
 
   insert into storage.objects (bucket_id, name, owner_id)
   values ('avatars', b || '/yo.jpg', b), ('avatars', b2 || '/yo.jpg', b2), ('avatars', d || '/yo.jpg', d);
@@ -87,9 +95,11 @@ begin
       (11, 'A', 'Se guardan calle (recortada), número, entre calles y pin; la zona vacía queda null', format('select 1 from public.jobs where id = %L and address_street = ''Calle 9'' and address_number = ''1150'' and address_between = ''entre 24 y 25'' and location_lat = -35.43 and location_lng = -60.17 and zone is null', j1), 'count:1'),
       (12, 'A', 'A no puede publicar sin pin', format(cj, j9, 'null', 'null', 'Calle 1', '1', null, null), 'err:Marcá la ubicación'),
       (13, 'A', 'A no puede publicar con solo la latitud', format(cj, j9, -35.43, 'null', 'Calle 1', '1', null, null), 'err:Marcá la ubicación'),
-      (14, 'A', 'A no puede publicar un pin en Buenos Aires (fuera del radio)', format(cj, j9, -34.6037, -58.3816, 'Calle 1', '1', null, null), 'err:La ubicación marcada está fuera de 25 de Mayo'),
-      (15, 'A', 'A no puede publicar un pin a 11 km del centro', format(cj, j9, -35.4324, -60.0504, 'Calle 1', '1', null, null), 'err:fuera de 25 de Mayo'),
-      (16, 'admin', 'Un pin a 9 km del centro (quintas) está dentro del radio', format('select private.check_location(%s::smallint, -35.4324, -60.0724)', loc), 'ok'),
+      (14, 'A', 'A publica un pedido en Buenos Aires: otra ciudad vale (Fase 8)', format(cj, j3, -34.6037, -58.3816, 'Corrientes', '1234', null, null), 'ok'),
+      (15, 'A', 'A no puede publicar un pin en el océano Atlántico (fuera de Argentina)', format(cj, j9, -40.0, -50.0, 'Calle 1', '1', null, null), 'err:La ubicación marcada está fuera de Argentina'),
+      (16, 'admin', 'Un pin en Ushuaia está dentro de Argentina', 'select private.check_in_argentina(-54.80, -68.30)', 'ok'),
+      (27, 'admin', 'Un pin en Río de Janeiro queda fuera', 'select private.check_in_argentina(-22.90, -43.20)', 'err:fuera de Argentina'),
+      (28, 'admin', 'Un pin en La Paz (Bolivia) queda fuera', 'select private.check_in_argentina(-16.50, -68.15)', 'err:fuera de Argentina'),
       (17, 'A', 'A no puede publicar una latitud imposible', format(cj, j9, 95, -60.17, 'Calle 1', '1', null, null), 'err:no es válida'),
       (18, 'A', 'A no puede publicar un pin NaN', format(cj, j9, '''NaN''::float8', -60.17, 'Calle 1', '1', null, null), 'err:no es válida'),
       (19, 'A', 'A no puede publicar un pin infinito', format(cj, j9, -35.43, '''-Infinity''::float8', 'Calle 1', '1', null, null), 'err:no es válida'),
@@ -102,7 +112,7 @@ begin
       (26, 'A', 'Ningún intento rechazado dejó un pedido', format('select 1 from public.jobs where id = %L', j9), 'count:0'),
 
       -- Editar
-      (30, 'A', 'A no puede mover el pin fuera del radio al editar', format(uj, j1, -34.6037, -58.3816, 'Calle 9', '1150', null, null), 'err:fuera de 25 de Mayo'),
+      (30, 'A', 'A no puede mover el pin fuera de Argentina al editar', format(uj, j1, -40.0, -50.0, 'Calle 9', '1150', null, null), 'err:fuera de Argentina'),
       (31, 'A', 'A no puede sacar el pin al editar', format(uj, j1, 'null', 'null', 'Calle 9', '1150', null, null), 'err:Marcá la ubicación'),
       (32, 'A', 'A edita pin, número y zona; entre calles vacío queda null', format(uj, j1, -35.4310, -60.1710, 'Calle 9', '1152', '', 'Centro'), 'ok'),
       (33, 'A', 'El pedido editado tiene el pin, número y zona nuevos', format('select 1 from public.jobs where id = %L and location_lat = -35.431 and location_lng = -60.171 and address_number = ''1152'' and address_between is null and zone = ''Centro'' and price_ars = 16000', j1), 'count:1'),
@@ -116,21 +126,21 @@ begin
       (43, 'B', 'B no obtiene datos privados ajenos ni con join', 'select pp.* from public.jobs j join public.profile_private pp on pp.user_id = j.client_id', 'count:0'),
       (44, 'A', 'A no ve la ubicación base de ningún cortador', format('select * from public.profile_private where user_id in (%L, %L, %L)', b, b2, d), 'count:0'),
       (45, 'C', 'C (sin rol de cortador) no ve los pedidos de A ni su dirección', format('select address_street from public.jobs where client_id = %L', a), 'count:0'),
-      (46, 'D', 'D (otra localidad) no ve los pedidos de A ni su dirección', format('select address_street from public.jobs where client_id = %L', a), 'count:0'),
+      (46, 'D', 'D (otra localidad) ve los 3 pedidos publicados de A con su dirección: la localidad ya no filtra (Fase 8)', format('select address_street from public.jobs where client_id = %L', a), 'count:3'),
       (47, 'E', 'E (sin perfil) no ve pedidos', 'select * from public.jobs', 'count:0'),
       (48, 'admin', 'profiles (público) no tiene ubicación, teléfono ni apellido', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''profiles'' and column_name ilike any (array[''%lat%'', ''%lng%'', ''%base%'', ''%phone%'', ''%last_name%''])', 'count:0'),
       (49, 'admin', 'Ninguna RPC devuelve la ubicación base', 'select 1 from pg_proc where pronamespace = ''public''::regnamespace and pg_get_function_result(oid) ilike ''%base_l%''', 'count:0'),
 
       -- Ubicación base
-      (50, 'B', 'B guarda su ubicación base (dentro del radio)', 'select public.set_my_base_location(-35.4405, -60.1735)', 'ok'),
+      (50, 'B', 'B guarda su ubicación base', 'select public.set_my_base_location(-35.4405, -60.1735)', 'ok'),
       (51, 'B', 'B ve su propia ubicación base', format('select 1 from public.profile_private where user_id = %L and base_lat = -35.4405 and base_lng = -60.1735', b), 'count:1'),
-      (52, 'B', 'B no puede guardar una ubicación base fuera del radio', 'select public.set_my_base_location(-34.6037, -58.3816)', 'err:fuera de 25 de Mayo'),
+      (52, 'B', 'B no puede guardar una ubicación base fuera de Argentina', 'select public.set_my_base_location(-40.0, -50.0)', 'err:fuera de Argentina'),
       (53, 'B', 'B no puede guardar solo la latitud', 'select public.set_my_base_location(-35.44, null)', 'err:Marcá la ubicación'),
       (54, 'B', 'B no puede guardar una ubicación NaN', 'select public.set_my_base_location(''NaN''::float8, -60.17)', 'err:no es válida'),
       (55, 'B', 'La ubicación de B no cambió con los intentos rechazados', format('select 1 from public.profile_private where user_id = %L and base_lat = -35.4405', b), 'count:1'),
       (56, 'B', 'B no puede escribir su ubicación base directo', format('update public.profile_private set base_lat = 0 where user_id = %L', b), 'err:permission denied'),
       (57, 'E', 'E (sin perfil) no puede guardar una ubicación base', 'select public.set_my_base_location(-35.43, -60.17)', 'err:completá tu perfil'),
-      (58, 'D', 'D se mide con el radio de SU localidad: un punto de 25 de Mayo queda afuera', 'select public.set_my_base_location(-35.43, -60.17)', 'err:fuera de Otra'),
+      (58, 'D', 'D (otra localidad) guarda su casa en 25 de Mayo: la localidad ya no limita (Fase 8)', 'select public.set_my_base_location(-35.43, -60.17)', 'ok'),
 
       -- Contacto con el trabajo asignado (preparado por admin: B elegido, B2 no elegido)
       (60, 'admin', '(preparación) B y B2 se postularon al pedido 2; eligen a B', format(
@@ -146,10 +156,10 @@ begin
       (65, 'C', 'C (tercero) no recibe el contacto', format('select * from public.get_job_contact(%L)', j2), 'err:No encontramos los datos'),
       (66, 'admin', 'get_job_contact ya no devuelve la dirección (está en jobs)', 'select 1 from pg_proc where proname = ''get_job_contact'' and pg_get_function_result(oid) ilike ''%address%''', 'count:0'),
 
-      -- B2 cambia de localidad: su ubicación base se borra (quedaría fuera del radio)
-      (70, 'B2', 'B2 se pasa a otra localidad', format(prof, 'Bruno', 'Bustos', '+5492345222333', loc2, false, true, b2 || '/yo.jpg'), 'ok'),
-      (71, 'B2', 'La ubicación base de B2 se borró', format('select 1 from public.profile_private where user_id = %L and base_lat is null and base_lng is null', b2), 'count:1'),
-      (72, 'B', 'Guardar el perfil sin cambiar de localidad no borra la ubicación base', format(prof, 'Beto', 'Benítez', '+5492345222222', loc, false, true, b || '/yo.jpg'), 'ok'),
+      -- Fase 8: la localidad no se elige; guardar el perfil no toca la ubicación base
+      (70, 'B2', 'B2 guarda su perfil (firma nueva, sin localidad)', format(prof, 'Bruno', 'Bustos', '+5492345222333', false, true, b2 || '/yo.jpg'), 'ok'),
+      (71, 'B2', 'La ubicación base de B2 sigue', format('select 1 from public.profile_private where user_id = %L and base_lat = -35.44 and base_lng = -60.18', b2), 'count:1'),
+      (72, 'B', 'B guarda su perfil', format(prof, 'Beto', 'Benítez', '+5492345222222', false, true, b || '/yo.jpg'), 'ok'),
       (73, 'B', 'La ubicación base de B sigue', format('select 1 from public.profile_private where user_id = %L and base_lat = -35.4405', b), 'count:1'),
 
       -- Avisos: llevan la dirección, nunca teléfono, apellido ni ubicación base
@@ -166,9 +176,9 @@ begin
       (92, 'admin', 'No quedan firmas viejas de create_job, update_job ni check_job_input', 'select 1 from pg_proc where proname in (''create_job'', ''update_job'', ''check_job_input'') and pg_get_function_identity_arguments(oid) not like ''%lat%''', 'count:0'),
       (93, 'admin', 'set_my_base_location es SECURITY DEFINER con search_path vacío', 'select 1 from pg_proc where pronamespace = ''public''::regnamespace and proname = ''set_my_base_location'' and prosecdef and proconfig @> array[''search_path=""'']', 'count:1'),
       (94, 'admin', 'anon no ejecuta las RPCs de ubicación', 'select 1 from pg_proc p where p.pronamespace = ''public''::regnamespace and p.proname in (''create_job'', ''update_job'', ''set_my_base_location'') and has_function_privilege(''anon'', p.oid, ''execute'')', 'count:0'),
-      (95, 'admin', 'authenticated no ejecuta las funciones internas de ubicación', 'select 1 from pg_proc p where p.pronamespace = ''private''::regnamespace and p.proname in (''check_location'', ''distance_m'', ''check_job_input'') and has_function_privilege(''authenticated'', p.oid, ''execute'')', 'count:0'),
-      (96, 'admin', '25 de Mayo tiene centro y radio de 10 km', 'select 1 from public.localities where slug = ''25-de-mayo-bsas'' and center_lat between -35.44 and -35.42 and center_lng between -60.18 and -60.16 and radius_m = 10000', 'count:1'),
-      (97, 'admin', 'Todos los pedidos (también los reales) tienen dirección', 'select 1 from public.jobs where address_street is null', 'count:0'),
+      (95, 'admin', 'authenticated no ejecuta las validaciones internas de ubicación (distance_m sí: es solo cuenta, la usa get_available_jobs)', 'select 1 from pg_proc p where p.pronamespace = ''private''::regnamespace and p.proname in (''check_location'', ''check_in_argentina'', ''check_job_input'') and has_function_privilege(''authenticated'', p.oid, ''execute'')', 'count:0'),
+      (96, 'admin', '25 de Mayo es la única localidad por defecto (centro del mapa)', 'select 1 from public.localities where is_default and slug = ''25-de-mayo-bsas'' and center_lat between -35.44 and -35.42 and center_lng between -60.18 and -60.16', 'count:1'),
+      (97, 'admin', 'Todos los pedidos con dueño (también los reales) tienen dirección', 'select 1 from public.jobs where address_street is null and client_id is not null', 'count:0'),
       (98, 'admin', 'La distancia de private.distance_m es la esperada (centro → 9 km al este)', 'select 1 where round(private.distance_m(-35.4324152, -60.171624, -35.4324152, -60.0724)) between 8950 and 9050', 'count:1')
     ) as x(n, who, label, sql, expected)
     order by n

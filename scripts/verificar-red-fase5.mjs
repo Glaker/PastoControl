@@ -55,7 +55,7 @@ const must = (r, what) => {
 async function signUp(role) {
   const sb = makeClient(role);
   const email = `pastocontrol.prueba.f5red-${role}-${stamp}@gmail.com`;
-  const data = must(await sb.auth.signUp({ email, password: `Prueba-${randomUUID()}` }), `registro ${role}`);
+  const data = must(await sb.auth.signUp({ email, password: `Prueba-${randomUUID()}`, options: { data: { terms_version: 1 } } }), `registro ${role}`);
   await sb.realtime.setAuth(data.session.access_token);
   return { sb, uid: data.user.id, role };
 }
@@ -64,8 +64,6 @@ const users = {};
 for (const role of Object.keys(PHONES)) users[role] = await signUp(role);
 const anon = makeClient('anon');
 const { cliente, elegido, noElegido, tercero } = users;
-
-const { data: loc } = await cliente.sb.from('localities').select('id').eq('slug', '25-de-mayo-bsas').single();
 const tinyJpeg = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
 const avatars = [];
 for (const u of [elegido, noElegido, tercero]) {
@@ -75,10 +73,11 @@ for (const u of [elegido, noElegido, tercero]) {
 }
 for (const u of Object.values(users)) {
   must(await u.sb.rpc('upsert_my_profile', {
-    p_first_name: u.role, p_last_name: LAST_NAMES[u.role], p_phone_e164: PHONES[u.role], p_locality_id: loc.id,
-    p_is_client: u.role === 'cliente', p_is_cutter: u.role !== 'cliente',
+    p_first_name: u.role, p_last_name: LAST_NAMES[u.role], p_phone_e164: PHONES[u.role],     p_is_client: u.role === 'cliente', p_is_cutter: u.role !== 'cliente',
     p_avatar_path: u.role === 'cliente' ? undefined : `${u.uid}/a.jpg`,
   }), `perfil ${u.role}`);
+  // Fase 8: la casa es obligatoria para cortar.
+  if (u.role !== 'cliente') must(await u.sb.rpc('set_my_base_location', { p_lat: -35.44, p_lng: -60.18 }), `casa ${u.role}`);
 }
 
 // Realtime: cada uno escucha sus avisos.

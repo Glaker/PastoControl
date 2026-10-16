@@ -1,21 +1,35 @@
 import { Alert, Button, Card, Group, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
-import { IconCurrentLocation, IconHome, IconInfoCircle, IconList, IconMap, IconRefresh } from '@tabler/icons-react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  IconCurrentLocation,
+  IconHome,
+  IconInfoCircle,
+  IconList,
+  IconMap,
+  IconRefresh,
+  IconRuler2,
+  IconZoomIn,
+} from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobCard } from '../../jobs/JobCard';
 import { LoadFailed } from '../../jobs/JobPageParts';
-import { jobPoint, useAvailableJobs, useJobPhotoUrls, type Job } from '../../jobs/queries';
+import { jobPoint, useAvailableJobs, useJobPhotoUrls, type AvailableJob } from '../../jobs/queries';
+import { friendlyError } from '../../lib/errors';
 import { formatPrice } from '../../lib/format';
-import { distanceMeters, geolocationPermission, isCoarsePointer, localityCenter, pointOf, type LatLng } from '../../lib/geo';
+import { isCoarsePointer, pointOf, type LatLng } from '../../lib/geo';
+import { supabase } from '../../lib/supabase';
 import { JobsMapView, type MapJob } from '../../map/lazy';
 import { useCurrentPosition } from '../../map/useCurrentPosition';
-import { useMyProfile } from '../../profile/queries';
+import { BaseLocationStep } from '../../profile/BaseLocationStep';
+import { myProfileKey, useMyProfile, type MyProfile } from '../../profile/queries';
 
 type Origin = 'actual' | 'casa';
 type View = 'lista' | 'mapa';
 
-// Preferencias de esta pantalla en este dispositivo.
+const RADII = [5, 10, 20, 50] as const;
+
+// Preferencias de esta pantalla en este dispositivo (el radio se guarda en la cuenta).
 const ORIGIN_KEY = 'pastocontrol.trabajos.origen';
 const VIEW_KEY = 'pastocontrol.trabajos.vista';
 
@@ -36,43 +50,41 @@ function store(key: string, value: string) {
   }
 }
 
-type SortedJob = { job: Job; distanceM: number | null };
-
 export function TrabajosPage() {
   const { data: profile } = useMyProfile();
-  const { data: jobs, isPending, error, refetch, isRefetching } = useAvailableJobs(profile?.locality_id);
-  // Una sola llamada para las miniaturas de toda la lista (la primera foto de cada trabajo).
-  const firstPhotos = (jobs ?? []).flatMap((j) => j.photo_paths.slice(0, 1));
-  const { data: thumbs } = useJobPhotoUrls(firstPhotos);
+  // RequireProfile garantiza que el perfil existe.
+  if (!profile) return <FullPageLoader />;
 
-  const home = pointOf(profile?.private.base_lat, profile?.private.base_lng);
+  const home = pointOf(profile.private.base_lat, profile.private.base_lng);
+  // Los cortadores que todavía no cargaron su casa (obligatoria desde la Fase 8) la cargan antes de ver trabajos.
+  if (!home) {
+    return (
+      <BaseLocationStep
+        profile={profile}
+        title="Antes de ver los trabajos"
+        intro="Para mostrarte los trabajos que te quedan cerca, marcá desde dónde salís a cortar."
+      />
+    );
+  }
+  return <AvailableJobs profile={profile} home={home} />;
+}
+
+function AvailableJobs({ profile, home }: { profile: MyProfile; home: LatLng }) {
+  const queryClient = useQueryClient();
   const gps = useCurrentPosition();
-  const [origin, setOrigin] = useState<Origin | null>(() => readStored(ORIGIN_KEY, ['actual', 'casa'] as const));
+  const [origin, setOrigin] = useState<Origin>(() => readStored(ORIGIN_KEY, ['actual', 'casa'] as const) ?? 'casa');
   const [view, setView] = useState<View>(() => readStored(VIEW_KEY, ['lista', 'mapa'] as const) ?? 'lista');
+  const [radius, setRadius] = useState<number>(profile.private.search_radius_km);
+  const [radiusError, setRadiusError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Sin preferencia guardada: la casa si está cargada; si no, el GPS solo si el permiso ya estaba dado
-  // (no se pide permiso sin que la persona toque el botón).
-  const decided = useRef(false);
+  // Si la última vez se eligió la ubicación actual, se vuelve a pedir (el permiso ya estaba dado).
+  const asked = useRef(false);
   useEffect(() => {
-    if (decided.current || !profile) return;
-    decided.current = true;
-    if (origin === 'actual') {
-      void gps.request();
-      return;
-    }
-    if (origin) return;
-    if (home) {
-      setOrigin('casa');
-      return;
-    }
-    void geolocationPermission().then((state) => {
-      if (state === 'granted') {
-        setOrigin('actual');
-        void gps.request();
-      }
-    });
-  }, [profile, origin, home, gps]);
+    if (asked.current) return;
+    asked.current = true;
+    if (origin === 'actual') void gps.request();
+  }, [origin, gps]);
 
   const chooseOrigin = (value: Origin) => {
     setOrigin(value);
@@ -85,34 +97,46 @@ export function TrabajosPage() {
     store(VIEW_KEY, value);
   };
 
-  const originPoint: LatLng | null = origin === 'casa' ? home : origin === 'actual' ? gps.position : null;
+  const chooseRadius = async (value: number) => {
+    const previous = radius;
+    setRadius(value);
+    setRadiusError(null);
+    const { error } = await supabase.rpc('set_my_search_radius', { p_km: value });
+    if (error) {
+      setRadius(previous);
+      setRadiusError(friendlyError(error, 'No pudimos guardar la distancia. Probá de nuevo.'));
+      return;
+    }
+    void queryClient.invalidateQueries({ queryKey: myProfileKey(profile.id) });
+  };
 
-  // Por distancia si hay origen (los trabajos sin pin, al final); si no, por fecha (como vienen).
-  const sorted = useMemo<SortedJob[]>(() => {
-    const list = (jobs ?? []).map((job) => {
-      const point = jobPoint(job);
-      return { job, distanceM: originPoint && point ? distanceMeters(originPoint, point) : null };
-    });
-    if (!originPoint) return list;
-    return list.sort((a, b) => (a.distanceM ?? Infinity) - (b.distanceM ?? Infinity));
-  }, [jobs, originPoint]);
+  // Desde la ubicación actual si se pudo obtener; si el GPS falla o no hay permiso, desde la casa.
+  const waitingGps = origin === 'actual' && !gps.position && gps.loading;
+  const usingGps = origin === 'actual' && !!gps.position;
+  const originPoint: LatLng | null = waitingGps ? null : usingGps ? gps.position : home;
+  const gpsFailed = origin === 'actual' && !gps.position && !gps.loading && !!gps.error;
+
+  const { data: jobs, isPending, error, refetch, isRefetching } = useAvailableJobs(originPoint, radius);
+  // Una sola llamada para las miniaturas de toda la lista (la primera foto de cada trabajo).
+  const firstPhotos = (jobs ?? []).flatMap(({ job }) => job.photo_paths.slice(0, 1));
+  const { data: thumbs } = useJobPhotoUrls(firstPhotos);
 
   const mapJobs = useMemo<MapJob[]>(
     () =>
-      sorted.flatMap(({ job }) => {
+      (jobs ?? []).flatMap(({ job }) => {
         const point = jobPoint(job);
         return point ? [{ id: job.id, point, priceLabel: formatPrice(job.price_ars) }] : [];
       }),
-    [sorted],
+    [jobs],
   );
 
-  const selected = sorted.find((s) => s.job.id === selectedId) ?? null;
+  const selected = (jobs ?? []).find((s) => s.job.id === selectedId) ?? null;
   const selectedRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (selectedId) selectedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [selectedId]);
 
-  const card = ({ job, distanceM }: SortedJob) => (
+  const card = ({ job, distanceM }: AvailableJob) => (
     <JobCard
       key={job.id}
       job={job}
@@ -123,19 +147,7 @@ export function TrabajosPage() {
     />
   );
 
-  const refresh = (
-    <Button
-      variant="default"
-      loading={isRefetching || gps.loading}
-      leftSection={<IconRefresh size={20} aria-hidden />}
-      onClick={() => {
-        void refetch();
-        if (origin === 'actual') void gps.request();
-      }}
-    >
-      Actualizar
-    </Button>
-  );
+  const nextRadius = RADII.find((r) => r > radius);
 
   return (
     <Stack gap="lg">
@@ -143,40 +155,51 @@ export function TrabajosPage() {
         <Title order={1} size="h2">
           Trabajos disponibles
         </Title>
-        {profile && (
-          <Text c="dimmed">
-            En {profile.locality.name}, {originPoint ? 'los más cercanos primero.' : 'ordenados por fecha.'}
-          </Text>
-        )}
+        <Text c="dimmed">
+          A menos de {radius} km de {usingGps ? 'donde estás' : 'tu casa'}, los más cercanos primero.
+        </Text>
       </div>
 
       <Stack gap="xs">
-        <Text fw={600}>Ordenar por distancia</Text>
+        <Text fw={600}>Buscar desde</Text>
         <SimpleGrid cols={2} spacing="xs">
           <ToggleButton
             active={origin === 'actual'}
             icon={<IconCurrentLocation size={22} aria-hidden />}
             onClick={() => chooseOrigin('actual')}
           >
-            Desde mi ubicación actual
+            Mi ubicación actual
           </ToggleButton>
           <ToggleButton active={origin === 'casa'} icon={<IconHome size={22} aria-hidden />} onClick={() => chooseOrigin('casa')}>
-            Desde mi casa
+            Mi casa
           </ToggleButton>
         </SimpleGrid>
-        {origin === 'actual' && gps.loading && !gps.position && <Text c="dimmed">Buscando tu ubicación…</Text>}
-        {!originPoint && !(origin === 'actual' && gps.loading) && (
-          <OriginNotice
-            reason={
-              origin === 'actual' && gps.error
-                ? gps.error
-                : origin === 'casa'
-                  ? 'Todavía no cargaste tu casa.'
-                  : null
-            }
-            hasHome={!!home}
-            onUseGps={() => chooseOrigin('actual')}
-          />
+        {waitingGps && <Text c="dimmed">Buscando tu ubicación…</Text>}
+        {gpsFailed && (
+          <Alert color="orange" icon={<IconInfoCircle aria-hidden />}>
+            {gps.error} Mientras tanto, te mostramos los trabajos desde tu casa.
+          </Alert>
+        )}
+      </Stack>
+
+      <Stack gap="xs">
+        <Group gap={6} wrap="nowrap">
+          <IconRuler2 size={20} aria-hidden style={{ flex: 'none' }} />
+          <Text fw={600}>Hasta qué distancia</Text>
+        </Group>
+        <SegmentedControl
+          fullWidth
+          size="md"
+          aria-label="Hasta qué distancia buscar"
+          value={String(radius)}
+          onChange={(value) => void chooseRadius(Number(value))}
+          data={RADII.map((r) => ({ value: String(r), label: `${r} km` }))}
+          styles={{ label: { minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
+        />
+        {radiusError && (
+          <Alert color="red" role="alert">
+            {radiusError}
+          </Alert>
         )}
       </Stack>
 
@@ -185,30 +208,38 @@ export function TrabajosPage() {
         aria-label="Cómo ver los trabajos"
         value={view}
         onChange={(value) => chooseView(value as View)}
+        styles={{ label: { minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
         data={[
           { value: 'lista', label: <SegmentLabel icon={<IconList size={20} aria-hidden />}>Lista</SegmentLabel> },
           { value: 'mapa', label: <SegmentLabel icon={<IconMap size={20} aria-hidden />}>Mapa</SegmentLabel> },
         ]}
       />
 
-      {isPending && <FullPageLoader label="Buscando trabajos…" />}
+      {(isPending || waitingGps) && <FullPageLoader label="Buscando trabajos…" />}
       {error && <LoadFailed error={error} onRetry={() => void refetch()} />}
 
       {jobs && jobs.length === 0 && (
         <Card withBorder radius="md" padding="lg">
-          <Text>Por ahora no hay trabajos publicados. Volvé a mirar más tarde.</Text>
+          <Stack gap="sm">
+            <Text>No hay trabajos publicados a menos de {radius} km. Volvé a mirar más tarde.</Text>
+            {nextRadius && (
+              <Button variant="default" leftSection={<IconZoomIn size={20} aria-hidden />} onClick={() => void chooseRadius(nextRadius)}>
+                Buscar hasta {nextRadius} km
+              </Button>
+            )}
+          </Stack>
         </Card>
       )}
 
-      {jobs && jobs.length > 0 && view === 'lista' && sorted.map(card)}
+      {jobs && jobs.length > 0 && view === 'lista' && jobs.map(card)}
 
-      {jobs && jobs.length > 0 && view === 'mapa' && profile && (
+      {jobs && jobs.length > 0 && view === 'mapa' && originPoint && (
         <Stack gap="sm">
           <JobsMapView
             jobs={mapJobs}
             origin={originPoint}
-            originLabel={origin === 'casa' ? 'Tu casa' : 'Vos'}
-            initialCenter={localityCenter(profile.locality)}
+            originLabel={usingGps ? 'Vos' : 'Tu casa'}
+            initialCenter={originPoint}
             selectedId={selectedId}
             onSelect={setSelectedId}
           />
@@ -216,13 +247,6 @@ export function TrabajosPage() {
             {isCoarsePointer() ? 'Para mover o acercar el mapa, usá dos dedos. ' : ''}
             Tocá un precio para ver el trabajo.
           </Text>
-          {mapJobs.length < jobs.length && (
-            <Text size="sm" c="dimmed">
-              {jobs.length - mapJobs.length === 1
-                ? '1 trabajo no tiene ubicación en el mapa: lo ves en la lista.'
-                : `${jobs.length - mapJobs.length} trabajos no tienen ubicación en el mapa: los ves en la lista.`}
-            </Text>
-          )}
           {/* Margen para que el scroll deje la tarjeta entera, sin la barra de abajo ni el encabezado encima. */}
           <div
             ref={selectedRef}
@@ -236,7 +260,19 @@ export function TrabajosPage() {
         </Stack>
       )}
 
-      {jobs && refresh}
+      {jobs && (
+        <Button
+          variant="default"
+          loading={isRefetching || gps.loading}
+          leftSection={<IconRefresh size={20} aria-hidden />}
+          onClick={() => {
+            void refetch();
+            if (origin === 'actual') void gps.request();
+          }}
+        >
+          Actualizar
+        </Button>
+      )}
     </Stack>
   );
 }
@@ -277,28 +313,5 @@ function SegmentLabel({ icon, children }: { icon: ReactNode; children: ReactNode
       {icon}
       <span>{children}</span>
     </Group>
-  );
-}
-
-function OriginNotice({ reason, hasHome, onUseGps }: { reason: string | null; hasHome: boolean; onUseGps: () => void }) {
-  return (
-    <Alert color="blue" icon={<IconInfoCircle aria-hidden />}>
-      <Stack gap="sm">
-        <Text>
-          {reason && `${reason} `}
-          {hasHome
-            ? 'Para ver primero los trabajos que te quedan más cerca, usá tu ubicación actual o elegí «Desde mi casa».'
-            : 'Para ver primero los trabajos que te quedan más cerca, usá tu ubicación actual o cargá tu casa en el perfil.'}
-        </Text>
-        <Button variant="white" leftSection={<IconCurrentLocation size={20} aria-hidden />} onClick={onUseGps}>
-          Usar mi ubicación actual
-        </Button>
-        {!hasHome && (
-          <Button component={Link} to="/perfil" variant="white" leftSection={<IconHome size={20} aria-hidden />}>
-            Cargar mi casa
-          </Button>
-        )}
-      </Stack>
-    </Alert>
   );
 }

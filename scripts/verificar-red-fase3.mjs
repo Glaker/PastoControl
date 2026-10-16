@@ -53,7 +53,7 @@ const must = (r, what) => {
 async function signUp(role) {
   const sb = makeClient(role);
   const email = `pastocontrol.prueba.f3-${role}-${stamp}@gmail.com`;
-  const data = must(await sb.auth.signUp({ email, password: `Prueba-${randomUUID()}` }), `registro ${role}`);
+  const data = must(await sb.auth.signUp({ email, password: `Prueba-${randomUUID()}`, options: { data: { terms_version: 1 } } }), `registro ${role}`);
   if (!data.session) throw new Error('El registro no devolvió sesión (¿"Confirm email" activado?)');
   await sb.realtime.setAuth(data.session.access_token);
   return { sb, uid: data.user.id };
@@ -64,12 +64,10 @@ const cortador1 = await signUp('cortador1');
 const cortador2 = await signUp('cortador2');
 const tercero = await signUp('tercero');
 const anon = makeClient('anon');
-
-const { data: loc } = await cliente.sb.from('localities').select('id').eq('slug', '25-de-mayo-bsas').single();
 const profile = (u, role, first, client, cutter, avatar) =>
   u.sb.rpc('upsert_my_profile', {
     p_first_name: first, p_last_name: LAST_NAMES[role], p_phone_e164: PHONES[role],
-    p_locality_id: loc.id, p_is_client: client, p_is_cutter: cutter, p_avatar_path: avatar,
+    p_is_client: client, p_is_cutter: cutter, p_avatar_path: avatar,
   });
 
 // Los cortadores necesitan foto: una imagen mínima alcanza para la prueba.
@@ -83,6 +81,8 @@ for (const [u, role, first] of [[cortador1, 'cortador1', 'Uno'], [cortador2, 'co
   must(await u.sb.storage.from('avatars').upload(path, tinyJpeg, { contentType: 'image/jpeg' }), `avatar ${role}`);
   avatars.push([u, path]);
   must(await profile(u, role, first, false, true, path), `perfil ${role}`);
+  // Fase 8: la casa es obligatoria para cortar.
+  must(await u.sb.rpc('set_my_base_location', { p_lat: -35.44, p_lng: -60.18 }), `casa ${role}`);
 }
 must(await profile(cliente, 'cliente', 'Clienta', true, false), 'perfil cliente');
 must(await profile(tercero, 'tercero', 'Tercero', true, false), 'perfil tercero');

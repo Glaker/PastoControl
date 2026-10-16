@@ -1,17 +1,17 @@
 import { Alert, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconCheck, IconHome, IconLock, IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconArrowLeft, IconCheck, IconHome, IconLock, IconPencil } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { friendlyError } from '../lib/errors';
-import { isInsideLocality, outsideLocalityMessage, pointOf, type LatLng } from '../lib/geo';
+import { isInArgentina, localityCenter, OUTSIDE_ARGENTINA, pointOf, type LatLng } from '../lib/geo';
 import { LocationField } from '../map/LocationField';
 import { myProfileKey, type MyProfile } from './queries';
 import { saveBaseLocation } from './saveProfile';
 
 /**
- * Ubicación base del cortador ("mi casa"): opcional y privada. Sirve para ordenar los trabajos por
- * distancia sin prender el GPS. El mapa se carga recién al tocar "Cargar" o "Cambiar".
+ * Ubicación base del cortador ("mi casa"): obligatoria para cortar y privada. Desde ahí se miden las
+ * distancias a los trabajos. Se puede cambiar, no borrar. El mapa se carga recién al tocar "Cambiar".
  */
 export function BaseLocationCard({ profile }: { profile: MyProfile }) {
   const queryClient = useQueryClient();
@@ -21,9 +21,9 @@ export function BaseLocationCard({ profile }: { profile: MyProfile }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const save = async (value: LatLng | null) => {
-    if (value && !isInsideLocality(profile.locality, value)) {
-      setError(outsideLocalityMessage(profile.locality));
+  const save = async (value: LatLng) => {
+    if (!isInArgentina(value)) {
+      setError(OUTSIDE_ARGENTINA);
       return;
     }
     setError(null);
@@ -32,11 +32,7 @@ export function BaseLocationCard({ profile }: { profile: MyProfile }) {
       await saveBaseLocation(value);
       await queryClient.invalidateQueries({ queryKey: myProfileKey(profile.id) });
       setEditing(false);
-      notifications.show({
-        color: 'pasto',
-        icon: <IconCheck size={18} />,
-        message: value ? 'Guardamos tu ubicación.' : 'Borramos tu ubicación.',
-      });
+      notifications.show({ color: 'pasto', icon: <IconCheck size={18} />, message: 'Guardamos tu ubicación.' });
     } catch (e) {
       setError(friendlyError(e, 'No pudimos guardar la ubicación. Probá de nuevo.'));
     } finally {
@@ -50,10 +46,7 @@ export function BaseLocationCard({ profile }: { profile: MyProfile }) {
         <Title order={2} size="h4">
           Desde dónde salís a cortar
         </Title>
-        <Text>
-          Opcional. Si la cargás, en «Trabajos» podés ver primero los que te quedan más cerca de tu casa sin
-          prender el GPS.
-        </Text>
+        <Text>Desde acá medimos qué tan lejos te queda cada trabajo. Para cortar pasto es obligatoria.</Text>
         <Group gap="xs" wrap="nowrap" align="flex-start" c="dimmed">
           <IconLock size={18} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
           <Text size="sm" c="inherit">
@@ -75,17 +68,6 @@ export function BaseLocationCard({ profile }: { profile: MyProfile }) {
             >
               {saved ? 'Cambiar la ubicación' : 'Cargar mi ubicación'}
             </Button>
-            {saved && (
-              <Button
-                variant="subtle"
-                color="red"
-                loading={busy}
-                leftSection={<IconTrash size={20} aria-hidden />}
-                onClick={() => void save(null)}
-              >
-                Borrar mi ubicación
-              </Button>
-            )}
           </>
         )}
 
@@ -93,8 +75,8 @@ export function BaseLocationCard({ profile }: { profile: MyProfile }) {
           <>
             <LocationField
               label="Tu casa (o desde donde salís)"
-              description="Tocá el mapa o usá tu ubicación actual."
-              locality={profile.locality}
+              description="Tocá el mapa o usá tu ubicación actual. Puede ser en cualquier ciudad."
+              defaultCenter={localityCenter(profile.locality)}
               value={point}
               onChange={setPoint}
             />
@@ -102,7 +84,7 @@ export function BaseLocationCard({ profile }: { profile: MyProfile }) {
               loading={busy}
               disabled={!point}
               leftSection={<IconCheck size={20} aria-hidden />}
-              onClick={() => void save(point)}
+              onClick={() => point && void save(point)}
             >
               Guardar ubicación
             </Button>

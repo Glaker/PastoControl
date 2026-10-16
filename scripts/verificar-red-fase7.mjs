@@ -6,7 +6,8 @@
 //   * la dirección y el pin del pedido los reciben los cortadores que ven el pedido; el tercero y anon no;
 //   * el teléfono y el apellido siguen llegando solo a la contraparte y solo con el trabajo asignado;
 //   * la ubicación base de cada cortador no aparece en ninguna respuesta de otra persona;
-//   * un pin o una ubicación base fuera del radio de la localidad se rechazan con un mensaje claro.
+//   * un pin o una ubicación base fuera de Argentina se rechazan con un mensaje claro (Fase 8: antes era el
+//     radio de la localidad; ahora un pin en otra ciudad vale).
 //
 // Uso: node scripts/verificar-red-fase7.mjs
 // Lee VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY de .env (solo la clave pública).
@@ -55,7 +56,7 @@ const must = (r, what) => {
 async function signUp(role) {
   const sb = makeClient(role);
   const email = `pastocontrol.prueba.f7red-${role}-${stamp}@gmail.com`;
-  const data = must(await sb.auth.signUp({ email, password: `Prueba-${randomUUID()}` }), `registro ${role}`);
+  const data = must(await sb.auth.signUp({ email, password: `Prueba-${randomUUID()}`, options: { data: { terms_version: 1 } } }), `registro ${role}`);
   return { sb, uid: data.user.id, role };
 }
 
@@ -63,8 +64,6 @@ const users = {};
 for (const role of Object.keys(PHONES)) users[role] = await signUp(role);
 const anon = makeClient('anon');
 const { cliente, cortador, cortador2, tercero } = users;
-
-const { data: loc } = await cliente.sb.from('localities').select('id').eq('slug', '25-de-mayo-bsas').single();
 const tinyJpeg = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
 const avatars = [];
 for (const u of [cortador, cortador2]) {
@@ -75,20 +74,19 @@ for (const u of [cortador, cortador2]) {
 for (const u of Object.values(users)) {
   const isCutter = u.role.startsWith('cortador');
   must(await u.sb.rpc('upsert_my_profile', {
-    p_first_name: u.role, p_last_name: LAST_NAMES[u.role], p_phone_e164: PHONES[u.role], p_locality_id: loc.id,
-    p_is_client: !isCutter, p_is_cutter: isCutter, p_avatar_path: isCutter ? `${u.uid}/a.jpg` : undefined,
+    p_first_name: u.role, p_last_name: LAST_NAMES[u.role], p_phone_e164: PHONES[u.role],     p_is_client: !isCutter, p_is_cutter: isCutter, p_avatar_path: isCutter ? `${u.uid}/a.jpg` : undefined,
   }), `perfil ${u.role}`);
 }
 for (const role of ['cortador', 'cortador2']) {
   must(await users[role].sb.rpc('set_my_base_location', { p_lat: BASES[role].lat, p_lng: BASES[role].lng }), `casa ${role}`);
 }
 
-// Fuera del radio: se rechaza con un mensaje claro (pin del pedido y ubicación base).
+// Fuera de Argentina (océano Atlántico): se rechaza con un mensaje claro (pin del pedido y ubicación base).
 const fueraPedido = await cliente.sb.rpc('create_job', {
-  p_id: randomUUID(), p_location_lat: -34.6037, p_location_lng: -58.3816, p_address_street: 'Florida', p_address_number: '100',
+  p_id: randomUUID(), p_location_lat: -40.0, p_location_lng: -50.0, p_address_street: 'Florida', p_address_number: '100',
   p_price_ars: 15000, p_desired_at: new Date(Date.now() + 2 * 86400e3).toISOString(),
 });
-const fueraCasa = await cortador.sb.rpc('set_my_base_location', { p_lat: -34.6037, p_lng: -58.3816 });
+const fueraCasa = await cortador.sb.rpc('set_my_base_location', { p_lat: -40.0, p_lng: -50.0 });
 
 const jobId = randomUUID();
 must(await cliente.sb.rpc('create_job', {
@@ -140,10 +138,10 @@ const found = (who, needles, onlyPhase) =>
 const secrets = (role) => [PHONES[role], PHONES[role].slice(4), LAST_NAMES[role]];
 const baseOf = (role) => [String(BASES[role].lat), String(BASES[role].lng)];
 
-check('Pin fuera del radio: create_job lo rechaza con un mensaje claro',
-  fueraPedido.error?.message?.startsWith('La ubicación marcada está fuera de 25 de Mayo'), fueraPedido.error?.message);
-check('Ubicación base fuera del radio: se rechaza con un mensaje claro',
-  fueraCasa.error?.message?.startsWith('La ubicación marcada está fuera de 25 de Mayo'), fueraCasa.error?.message);
+check('Pin fuera de Argentina: create_job lo rechaza con un mensaje claro',
+  fueraPedido.error?.message?.startsWith('La ubicación marcada está fuera de Argentina'), fueraPedido.error?.message);
+check('Ubicación base fuera de Argentina: se rechaza con un mensaje claro',
+  fueraCasa.error?.message?.startsWith('La ubicación marcada está fuera de Argentina'), fueraCasa.error?.message);
 
 // Dirección visible
 for (const who of ['cortador', 'cortador2']) {

@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertTriangle, IconBan, IconBrandWhatsapp, IconCheck, IconPhone, IconUser, IconUserCircle } from '@tabler/icons-react';
+import { IconAlertTriangle, IconBan, IconBrandWhatsapp, IconCheck, IconPhone, IconUser, IconUserCircle, IconUserOff } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -12,6 +12,7 @@ import { formatPhone, whatsappLink } from '../lib/phone';
 import { jobKeys, type Job } from '../jobs/queries';
 import { cancelJob } from '../jobs/saveJob';
 import { MarkDoneButton, RatingCard } from '../completion/CompletionParts';
+import { DELETED_USER } from '../profile/queries';
 import { useJobContact } from './queries';
 
 type Props = {
@@ -27,10 +28,12 @@ type Props = {
  */
 export function AssignedPanel({ job, viewer }: Props) {
   const queryClient = useQueryClient();
-  const active = job.status === 'asignado' || job.status === 'realizado';
-  const { data: contact, isPending, error, refetch } = useJobContact(job.id, active);
   // Perfil público de la contraparte (para el cliente, el cortador elegido; para el cortador, el cliente).
+  // null: borró su cuenta (el trabajo queda como historial, sin sus datos).
   const counterpartId = viewer === 'cliente' ? job.agreement?.cutter_id : job.client_id;
+  const counterpartDeleted = counterpartId === null;
+  const active = (job.status === 'asignado' || job.status === 'realizado') && !counterpartDeleted;
+  const { data: contact, isPending, error, refetch } = useJobContact(job.id, active);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
@@ -77,7 +80,17 @@ export function AssignedPanel({ job, viewer }: Props) {
             {viewer === 'cliente' ? 'Quién corta el pasto' : 'Datos del cliente'}
           </Title>
 
-          {isPending && <Text c="dimmed">Cargando los datos de contacto…</Text>}
+          {counterpartDeleted && (
+            <ContactRow icon={<IconUserOff size={22} aria-hidden />} label="Nombre">
+              <Text size="lg" fw={700}>
+                {DELETED_USER}
+              </Text>
+              <Text size="sm" c="dimmed">
+                Esta persona borró su cuenta: sus datos de contacto ya no están.
+              </Text>
+            </ContactRow>
+          )}
+          {active && isPending && <Text c="dimmed">Cargando los datos de contacto…</Text>}
           {error && (
             <Stack gap="xs">
               <Alert color="red" icon={<IconAlertTriangle aria-hidden />}>

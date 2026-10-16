@@ -1,6 +1,6 @@
-import { Avatar, Badge, Button, Card, Divider, Group, Stack, Text, Title } from '@mantine/core';
+import { Avatar, Badge, Button, Card, Divider, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconLogout, IconPencil, IconUserCircle } from '@tabler/icons-react';
+import { IconCheck, IconFileText, IconLogout, IconPencil, IconShieldLock, IconTrash, IconUserCircle } from '@tabler/icons-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthProvider';
@@ -10,15 +10,13 @@ import { signOut } from '../auth/signOut';
 import { DeviceSettings } from '../push/DeviceSettings';
 import { BaseLocationCard } from '../profile/BaseLocationCard';
 import { ProfileForm } from '../profile/ProfileForm';
-import { useAvatarUrl, useLocalities, useMyProfile } from '../profile/queries';
+import { useAvatarUrl, useMyProfile } from '../profile/queries';
 
 export function PerfilPage() {
   const { session } = useAuth();
   const { data: profile } = useMyProfile();
   const { data: avatarUrl } = useAvatarUrl(profile?.avatar_path);
   const [editing, setEditing] = useState(false);
-  // Precarga para que "Editar mis datos" abra sin espera.
-  useLocalities();
 
   // RequireProfile garantiza que el perfil existe.
   if (!profile) return <FullPageLoader />;
@@ -73,7 +71,6 @@ export function PerfilPage() {
 
         <Stack gap="sm">
           <Field label="WhatsApp" value={formatPhone(profile.private.phone_e164)} />
-          <Field label="Localidad" value={`${profile.locality.name}, ${profile.locality.province}`} />
           <Field label="Email" value={session?.user.email ?? '—'} />
         </Stack>
       </Card>
@@ -105,6 +102,37 @@ export function PerfilPage() {
       >
         Cerrar sesión
       </Button>
+
+      <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
+        <Button component={Link} to="/terminos" variant="subtle" color="gray" leftSection={<IconFileText size={20} aria-hidden />}>
+          Términos
+        </Button>
+        <Button component={Link} to="/privacidad" variant="subtle" color="gray" leftSection={<IconShieldLock size={20} aria-hidden />}>
+          Privacidad
+        </Button>
+      </SimpleGrid>
+
+      {/* Acción peligrosa: separada de lo demás, al final y en rojo. */}
+      <Card withBorder radius="md" padding="lg" mt="xl" style={{ borderColor: 'var(--mantine-color-red-4)' }}>
+        <Stack gap="sm">
+          <Title order={2} size="h4" c="red.8">
+            Borrar mi cuenta
+          </Title>
+          <Text size="sm">
+            Se borran tus datos y no se puede deshacer. Antes vas a tener que cancelar lo que tengas pendiente.
+          </Text>
+          <Button
+            component={Link}
+            to="/cuenta/borrar"
+            variant="outline"
+            color="red"
+            leftSection={<IconTrash size={20} aria-hidden />}
+          >
+            Borrar mi cuenta
+          </Button>
+        </Stack>
+      </Card>
+
       <Text size="xs" c="dimmed" ta="center" data-app-version={__APP_VERSION__}>
         PastoControl · versión {__APP_VERSION__}
       </Text>

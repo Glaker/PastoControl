@@ -1,6 +1,6 @@
 import { Alert, Avatar, Button, Card, Group, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertTriangle, IconRefresh, IconScissors, IconUserCheck, IconUserCircle, IconUsers } from '@tabler/icons-react';
+import { IconAlertTriangle, IconRefresh, IconScissors, IconUserCheck, IconUserCircle, IconUserOff, IconUsers } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -10,7 +10,7 @@ import dayjs from '../lib/dayjs';
 import { friendlyError } from '../lib/errors';
 import { formatDateTimeLong, formatPrice } from '../lib/format';
 import { jobKeys, type Job } from '../jobs/queries';
-import { useAvatarUrl } from '../profile/queries';
+import { DELETED_USER, displayName, useAvatarUrl } from '../profile/queries';
 import { acceptApplication, useJobApplicants, type Applicant } from './queries';
 
 /** Postulantes de un pedido publicado: el cliente elige a uno (aceptación atómica). */
@@ -24,12 +24,12 @@ export function ApplicantsList({ job }: { job: Job }) {
   const others = (applicants ?? []).filter((a) => a.status !== 'pendiente');
 
   const choose = async (a: Applicant) => {
-    const name = `${a.first_name} ${a.last_initial}.`;
+    const name = displayName(a);
     const price = a.proposed_price_ars ?? job.price_ars;
     const at = a.proposed_at ?? job.desired_at;
     const ok = await confirmAction({
       title: `¿Elegís a ${name}?`,
-      confirmLabel: `Sí, elegir a ${a.first_name}`,
+      confirmLabel: `Sí, elegir a ${a.first_name ?? DELETED_USER}`,
       confirmIcon: <IconUserCheck size={20} aria-hidden />,
       message: (
         <Stack gap="xs">
@@ -146,6 +146,7 @@ function ApplicantCard({
 }) {
   const { data: avatarUrl } = useAvatarUrl(a.avatar_path);
   const at = a.proposed_at ?? job.desired_at;
+  const deleted = a.cutter_id === null;
   // Con el pedido vencido solo se puede elegir a quien propuso un horario futuro.
   const timePassed = !dayjs(at).isAfter(dayjs());
 
@@ -154,35 +155,37 @@ function ApplicantCard({
       <Stack gap="sm">
         <Group justify="space-between" gap="xs" wrap="nowrap" align="flex-start">
           <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-            <Avatar src={avatarUrl ?? null} size={48} radius={999} color="pasto" alt="">
-              {`${a.first_name.charAt(0)}${a.last_initial}`}
+            <Avatar src={avatarUrl ?? null} size={48} radius={999} color={deleted ? 'gray' : 'pasto'} alt="">
+              {deleted ? <IconUserOff size={24} aria-hidden /> : `${a.first_name?.charAt(0)}${a.last_initial}`}
             </Avatar>
-            <Text fw={700}>
-              {a.first_name} {a.last_initial}.
-            </Text>
+            <Text fw={700}>{displayName(a)}</Text>
           </Group>
           {a.status !== 'pendiente' && <ApplicationStatusBadge status={a.status} />}
         </Group>
         <ProposalSummary job={job} application={a} />
-        <Group gap={6} wrap="nowrap" align="flex-start">
-          <IconScissors size={18} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
-          <Text size="sm">
-            {a.done_jobs === 1 ? '1 trabajo realizado' : `${a.done_jobs ?? 0} trabajos realizados`}
-            {' · '}
-            {a.yes_pct !== null
-              ? `${a.yes_pct} % volvería a trabajar con ${a.first_name}`
-              : 'todavía sin suficientes calificaciones'}
-          </Text>
-        </Group>
-        <Button
-          component={Link}
-          to={`/persona/${a.cutter_id}`}
-          variant="default"
-          leftSection={<IconUserCircle size={20} aria-hidden />}
-        >
-          Ver el perfil de {a.first_name}
-        </Button>
-        {onChoose && a.status === 'pendiente' && (
+        {!deleted && (
+          <Group gap={6} wrap="nowrap" align="flex-start">
+            <IconScissors size={18} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+            <Text size="sm">
+              {a.done_jobs === 1 ? '1 trabajo realizado' : `${a.done_jobs ?? 0} trabajos realizados`}
+              {' · '}
+              {a.yes_pct !== null
+                ? `${a.yes_pct} % volvería a trabajar con ${a.first_name}`
+                : 'todavía sin suficientes calificaciones'}
+            </Text>
+          </Group>
+        )}
+        {!deleted && (
+          <Button
+            component={Link}
+            to={`/persona/${a.cutter_id}`}
+            variant="default"
+            leftSection={<IconUserCircle size={20} aria-hidden />}
+          >
+            Ver el perfil de {a.first_name}
+          </Button>
+        )}
+        {onChoose && a.status === 'pendiente' && !deleted && (
           <>
             <Button
               leftSection={<IconUserCheck size={20} aria-hidden />}

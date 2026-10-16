@@ -20,7 +20,7 @@ export type Database = {
         Row: {
           attempt: number
           created_at: string
-          cutter_id: string
+          cutter_id: string | null
           edits: number
           id: string
           job_id: string
@@ -32,7 +32,7 @@ export type Database = {
         Insert: {
           attempt?: number
           created_at?: string
-          cutter_id: string
+          cutter_id?: string | null
           edits?: number
           id?: string
           job_id: string
@@ -44,7 +44,7 @@ export type Database = {
         Update: {
           attempt?: number
           created_at?: string
-          cutter_id?: string
+          cutter_id?: string | null
           edits?: number
           id?: string
           job_id?: string
@@ -76,8 +76,8 @@ export type Database = {
           application_id: string
           assigned_at: string
           cancelled_by: string | null
-          client_id: string
-          cutter_id: string
+          client_id: string | null
+          cutter_id: string | null
           done_at: string | null
           done_by: string | null
           job_id: string
@@ -88,8 +88,8 @@ export type Database = {
           application_id: string
           assigned_at?: string
           cancelled_by?: string | null
-          client_id: string
-          cutter_id: string
+          client_id?: string | null
+          cutter_id?: string | null
           done_at?: string | null
           done_by?: string | null
           job_id: string
@@ -100,8 +100,8 @@ export type Database = {
           application_id?: string
           assigned_at?: string
           cancelled_by?: string | null
-          client_id?: string
-          cutter_id?: string
+          client_id?: string | null
+          cutter_id?: string | null
           done_at?: string | null
           done_by?: string | null
           job_id?: string
@@ -156,10 +156,10 @@ export type Database = {
         Row: {
           address_between: string | null
           address_number: string | null
-          address_street: string
+          address_street: string | null
           cancelled_at: string | null
           cancelled_by: string | null
-          client_id: string
+          client_id: string | null
           created_at: string
           desired_at: string
           id: string
@@ -178,10 +178,10 @@ export type Database = {
         Insert: {
           address_between?: string | null
           address_number?: string | null
-          address_street: string
+          address_street?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
-          client_id: string
+          client_id?: string | null
           created_at?: string
           desired_at: string
           id?: string
@@ -199,10 +199,10 @@ export type Database = {
         Update: {
           address_between?: string | null
           address_number?: string | null
-          address_street?: string
+          address_street?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
-          client_id?: string
+          client_id?: string | null
           created_at?: string
           desired_at?: string
           id?: string
@@ -255,6 +255,7 @@ export type Database = {
           created_at: string
           id: number
           is_active: boolean
+          is_default: boolean
           name: string
           phone_area_code: string
           province: string
@@ -268,6 +269,7 @@ export type Database = {
           created_at?: string
           id?: never
           is_active?: boolean
+          is_default?: boolean
           name: string
           phone_area_code: string
           province: string
@@ -281,6 +283,7 @@ export type Database = {
           created_at?: string
           id?: never
           is_active?: boolean
+          is_default?: boolean
           name?: string
           phone_area_code?: string
           province?: string
@@ -351,96 +354,13 @@ export type Database = {
           },
         ]
       }
-      push_subscriptions: {
-        Row: {
-          auth: string
-          created_at: string
-          endpoint: string
-          id: string
-          p256dh: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          auth: string
-          created_at?: string
-          endpoint: string
-          id?: string
-          p256dh: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          auth?: string
-          created_at?: string
-          endpoint?: string
-          id?: string
-          p256dh?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "push_subscriptions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ratings: {
-        Row: {
-          created_at: string
-          job_id: string
-          ratee_id: string
-          rater_id: string
-          would_work_again: boolean
-        }
-        Insert: {
-          created_at?: string
-          job_id: string
-          ratee_id: string
-          rater_id: string
-          would_work_again: boolean
-        }
-        Update: {
-          created_at?: string
-          job_id?: string
-          ratee_id?: string
-          rater_id?: string
-          would_work_again?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ratings_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ratings_ratee_id_fkey"
-            columns: ["ratee_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ratings_rater_id_fkey"
-            columns: ["rater_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profile_private: {
         Row: {
           base_lat: number | null
           base_lng: number | null
           last_name: string
           phone_e164: string
+          search_radius_km: number
           updated_at: string
           user_id: string
         }
@@ -449,6 +369,7 @@ export type Database = {
           base_lng?: number | null
           last_name: string
           phone_e164: string
+          search_radius_km?: number
           updated_at?: string
           user_id: string
         }
@@ -457,6 +378,7 @@ export type Database = {
           base_lng?: number | null
           last_name?: string
           phone_e164?: string
+          search_radius_km?: number
           updated_at?: string
           user_id?: string
         }
@@ -514,6 +436,134 @@ export type Database = {
           },
         ]
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ratings: {
+        Row: {
+          created_at: string
+          id: number
+          job_id: string
+          ratee_id: string | null
+          rater_id: string | null
+          would_work_again: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          job_id: string
+          ratee_id?: string | null
+          rater_id?: string | null
+          would_work_again: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          job_id?: string
+          ratee_id?: string | null
+          rater_id?: string | null
+          would_work_again?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_ratee_id_fkey"
+            columns: ["ratee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ratings_rater_id_fkey"
+            columns: ["rater_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      terms_acceptances: {
+        Row: {
+          accepted_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          accepted_at?: string
+          user_id: string
+          version: number
+        }
+        Update: {
+          accepted_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terms_acceptances_version_fkey"
+            columns: ["version"]
+            isOneToOne: false
+            referencedRelation: "terms_versions"
+            referencedColumns: ["version"]
+          },
+        ]
+      }
+      terms_versions: {
+        Row: {
+          published_at: string
+          version: number
+        }
+        Insert: {
+          published_at?: string
+          version: number
+        }
+        Update: {
+          published_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -523,6 +573,7 @@ export type Database = {
         Args: { p_application_id: string; p_expected_updated_at: string }
         Returns: undefined
       }
+      accept_terms: { Args: { p_version: number }; Returns: undefined }
       apply_to_job: {
         Args: {
           p_job_id: string
@@ -549,9 +600,17 @@ export type Database = {
         }
         Returns: string
       }
+      delete_account: { Args: { p_user_id: string }; Returns: Json }
       delete_push_subscription: {
         Args: { p_endpoint: string }
         Returns: boolean
+      }
+      get_available_jobs: {
+        Args: { p_lat: number; p_lng: number; p_radius_km: number }
+        Returns: {
+          distance_m: number
+          job_id: string
+        }[]
       }
       get_job_applicants: {
         Args: { p_job_id: string }
@@ -579,6 +638,24 @@ export type Database = {
           first_name: string
           last_name: string
           phone_e164: string
+        }[]
+      }
+      get_my_pending_items: {
+        Args: never
+        Returns: {
+          address: string
+          application_id: string
+          at: string
+          is_expired: boolean
+          job_id: string
+          kind: string
+        }[]
+      }
+      get_my_terms_status: {
+        Args: never
+        Returns: {
+          accepted: boolean
+          current_version: number
         }[]
       }
       get_profile_stats: {
@@ -610,6 +687,7 @@ export type Database = {
         Args: { p_lat: number; p_lng: number }
         Returns: undefined
       }
+      set_my_search_radius: { Args: { p_km: number }; Returns: undefined }
       update_application: {
         Args: {
           p_application_id: string
@@ -641,7 +719,6 @@ export type Database = {
           p_is_client: boolean
           p_is_cutter: boolean
           p_last_name: string
-          p_locality_id: number
           p_phone_e164: string
         }
         Returns: undefined

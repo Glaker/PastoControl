@@ -21,9 +21,11 @@ export function describeNotification(
 ): NotificationView {
   const p = n.payload ?? {};
   const tz = p.tz ?? fallbackTimeZone;
-  // Lugar del pedido: la dirección (la zona en los avisos anteriores a que fuera visible).
-  const zone = p.address ?? p.zone ?? 'tu pedido';
-  const actor = p.actor_name ?? 'Alguien';
+  // Lugar del pedido: la dirección (la zona en los avisos anteriores a que fuera visible). Puede faltar si
+  // el dueño del pedido borró su cuenta; el nombre, si la persona que actuó la borró (Fase 8).
+  const place = p.address ?? p.zone;
+  const en = place ? ` en ${place}` : '';
+  const actor = p.actor_name ?? 'Usuario eliminado';
 
   const proposal = () => {
     const price = p.proposed_price_ars ? `propone ${formatPrice(p.proposed_price_ars)}` : null;
@@ -40,7 +42,7 @@ export function describeNotification(
         icon: IconUserPlus,
         color: 'blue',
         title: 'Nueva postulación',
-        body: `${actor} se postuló a tu pedido en ${zone} y ${proposal()}.`,
+        body: `${actor} se postuló a tu pedido${en} y ${proposal()}.`,
         to: n.job_id ? `/pedir/pedido/${n.job_id}` : null,
       };
     case 'postulacion_editada':
@@ -48,7 +50,7 @@ export function describeNotification(
         icon: IconPencil,
         color: 'blue',
         title: 'Cambió una postulación',
-        body: `${actor} cambió su postulación a tu pedido en ${zone}: ahora ${proposal()}.`,
+        body: `${actor} cambió su postulación a tu pedido${en}: ahora ${proposal()}.`,
         to: n.job_id ? `/pedir/pedido/${n.job_id}` : null,
       };
     case 'postulacion_retirada':
@@ -56,7 +58,7 @@ export function describeNotification(
         icon: IconArrowBackUp,
         color: 'gray',
         title: 'Postulación retirada',
-        body: `${actor} retiró su postulación a tu pedido en ${zone}.`,
+        body: `${actor} retiró su postulación a tu pedido${en}.`,
         to: n.job_id ? `/pedir/pedido/${n.job_id}` : null,
       };
     case 'pedido_cancelado':
@@ -64,7 +66,7 @@ export function describeNotification(
         icon: IconBan,
         color: 'gray',
         title: 'Pedido cancelado',
-        body: `El cliente canceló el pedido en ${zone}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Tu postulación quedó sin efecto.`,
+        body: `El cliente canceló el pedido${en}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Tu postulación quedó sin efecto.`,
         to: n.job_id ? `/cortar/trabajo/${n.job_id}` : null,
       };
     case 'postulacion_aceptada':
@@ -72,7 +74,7 @@ export function describeNotification(
         icon: IconConfetti,
         color: 'teal',
         title: '¡Te eligieron!',
-        body: `${actor} aceptó tu postulación para ${zone}${p.price_ars ? `: ${formatPrice(p.price_ars)}` : ''}${
+        body: `${actor} aceptó tu postulación${place ? ` para ${place}` : ''}${p.price_ars ? `: ${formatPrice(p.price_ars)}` : ''}${
           p.desired_at ? `, ${formatDateTime(p.desired_at, tz)}` : ''
         }. Ya podés escribirle por WhatsApp.`,
         to: n.job_id ? `/cortar/trabajo/${n.job_id}` : null,
@@ -82,7 +84,7 @@ export function describeNotification(
         icon: IconUserX,
         color: 'gray',
         title: 'Eligieron a otra persona',
-        body: `El cliente eligió a otra persona para el trabajo en ${zone}. ¡Suerte con el próximo!`,
+        body: `El cliente eligió a otra persona para el trabajo${en}. ¡Suerte con el próximo!`,
         to: n.job_id ? `/cortar/trabajo/${n.job_id}` : null,
       };
     case 'trabajo_cancelado_por_cliente':
@@ -90,7 +92,7 @@ export function describeNotification(
         icon: IconBan,
         color: 'red',
         title: 'Trabajo cancelado',
-        body: `${actor} canceló el trabajo en ${zone}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}.`,
+        body: `${actor} canceló el trabajo${en}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}.`,
         to: n.job_id ? `/cortar/trabajo/${n.job_id}` : null,
       };
     case 'trabajo_cancelado_por_cortador':
@@ -98,7 +100,7 @@ export function describeNotification(
         icon: IconBan,
         color: 'red',
         title: 'Trabajo cancelado',
-        body: `${actor} canceló el trabajo en ${zone}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Si querés, publicalo de nuevo.`,
+        body: `${actor} canceló el trabajo${en}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Si querés, publicalo de nuevo.`,
         to: n.job_id ? `/pedir/pedido/${n.job_id}` : null,
       };
     case 'trabajo_realizado':
@@ -106,7 +108,7 @@ export function describeNotification(
         icon: IconCircleCheck,
         color: 'teal',
         title: 'Trabajo realizado',
-        body: `${actor} marcó como realizado el trabajo en ${zone}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Contanos si volverías a trabajar con esa persona.`,
+        body: `${actor} marcó como realizado el trabajo${en}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Contanos si volverías a trabajar con esa persona.`,
         // Le llega a cualquiera de las dos partes: /trabajo/:id lleva a la pantalla que corresponde.
         to: n.job_id ? `/trabajo/${n.job_id}` : null,
       };

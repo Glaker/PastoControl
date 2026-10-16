@@ -1,6 +1,6 @@
-import { Alert, Anchor, Button, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Button, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { IconAlertTriangle, IconLogin, IconUserPlus } from '@tabler/icons-react';
+import { IconAlertTriangle, IconFileText, IconLogin, IconShieldLock, IconTrash, IconUserPlus } from '@tabler/icons-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { PasswordField } from '../../components/PasswordField';
@@ -62,6 +62,17 @@ export function IngresarPage() {
           Crear una cuenta
         </Button>
       </Stack>
+      <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="xs">
+        <Button component={Link} to="/terminos" variant="subtle" color="gray" leftSection={<IconFileText size={20} aria-hidden />}>
+          Términos
+        </Button>
+        <Button component={Link} to="/privacidad" variant="subtle" color="gray" leftSection={<IconShieldLock size={20} aria-hidden />}>
+          Privacidad
+        </Button>
+        <Button component={Link} to="/borrar-cuenta" variant="subtle" color="gray" leftSection={<IconTrash size={20} aria-hidden />}>
+          Borrar cuenta
+        </Button>
+      </SimpleGrid>
     </Stack>
   );
 }

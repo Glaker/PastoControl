@@ -57,7 +57,7 @@ const must = (r, what) => {
 async function signUp(role) {
   const sb = makeClient(role, log);
   const email = `pastocontrol.prueba.f2-${role}-${stamp}@gmail.com`;
-  const data = must(await sb.auth.signUp({ email, password: `Prueba-${randomUUID()}` }), `registro ${role}`);
+  const data = must(await sb.auth.signUp({ email, password: `Prueba-${randomUUID()}`, options: { data: { terms_version: 1 } } }), `registro ${role}`);
   if (!data.session) throw new Error('El registro no devolvió sesión (¿"Confirm email" activado?)');
   return { sb, uid: data.user.id };
 }
@@ -67,22 +67,22 @@ const cortador = await signUp('cortador');
 const tercero = await signUp('tercero');
 const anon = makeClient('anon', log);
 
-const { data: loc } = await cliente.sb.from('localities').select('id').eq('slug', '25-de-mayo-bsas').single();
-
 // Perfiles
 must(await cliente.sb.rpc('upsert_my_profile', {
   p_first_name: 'Clienta', p_last_name: LAST_NAMES.cliente, p_phone_e164: PHONES.cliente,
-  p_locality_id: loc.id, p_is_client: true, p_is_cutter: false,
+  p_is_client: true, p_is_cutter: false,
 }), 'perfil cliente');
 const avatar = `${cortador.uid}/a.jpg`;
 must(await cortador.sb.storage.from('avatars').upload(avatar, photo, { contentType: 'image/jpeg' }), 'avatar cortador');
 must(await cortador.sb.rpc('upsert_my_profile', {
   p_first_name: 'Cortador', p_last_name: LAST_NAMES.cortador, p_phone_e164: PHONES.cortador,
-  p_locality_id: loc.id, p_is_client: false, p_is_cutter: true, p_avatar_path: avatar,
+  p_is_client: false, p_is_cutter: true, p_avatar_path: avatar,
 }), 'perfil cortador');
+// Fase 8: la casa es obligatoria para cortar.
+must(await cortador.sb.rpc('set_my_base_location', { p_lat: -35.44, p_lng: -60.18 }), 'casa cortador');
 must(await tercero.sb.rpc('upsert_my_profile', {
   p_first_name: 'Tercero', p_last_name: LAST_NAMES.tercero, p_phone_e164: PHONES.tercero,
-  p_locality_id: loc.id, p_is_client: true, p_is_cutter: false,
+  p_is_client: true, p_is_cutter: false,
 }), 'perfil tercero');
 
 // Pedido con foto, igual que la app

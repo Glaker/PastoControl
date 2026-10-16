@@ -177,9 +177,11 @@ function formatDateTime(iso: string, timeZone: string): string {
 
 function describe(kind: string, jobId: string | null, p: Payload): { title: string; body: string; url: string } {
   const tz = p.tz ?? DEFAULT_TZ;
-  // Lugar del pedido: la dirección (la zona en los avisos anteriores a que fuera visible).
-  const zone = p.address ?? p.zone ?? 'tu pedido';
-  const actor = p.actor_name ?? 'Alguien';
+  // Lugar del pedido: la dirección (la zona en los avisos anteriores a que fuera visible). Puede faltar si
+  // el dueño del pedido borró su cuenta; el nombre, si la persona que actuó la borró (Fase 8).
+  const place = p.address ?? p.zone;
+  const en = place ? ` en ${place}` : '';
+  const actor = p.actor_name ?? 'Usuario eliminado';
   const when = p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : '';
   const pedido = jobId ? `/pedir/pedido/${jobId}` : '/avisos';
   const trabajo = jobId ? `/cortar/trabajo/${jobId}` : '/avisos';
@@ -195,25 +197,25 @@ function describe(kind: string, jobId: string | null, p: Payload): { title: stri
 
   switch (kind) {
     case 'postulacion_nueva':
-      return { title: 'Nueva postulación', body: `${actor} se postuló a tu pedido en ${zone} y ${proposal()}.`, url: pedido };
+      return { title: 'Nueva postulación', body: `${actor} se postuló a tu pedido${en} y ${proposal()}.`, url: pedido };
     case 'postulacion_editada':
       return {
         title: 'Cambió una postulación',
-        body: `${actor} cambió su postulación a tu pedido en ${zone}: ahora ${proposal()}.`,
+        body: `${actor} cambió su postulación a tu pedido${en}: ahora ${proposal()}.`,
         url: pedido,
       };
     case 'postulacion_retirada':
-      return { title: 'Postulación retirada', body: `${actor} retiró su postulación a tu pedido en ${zone}.`, url: pedido };
+      return { title: 'Postulación retirada', body: `${actor} retiró su postulación a tu pedido${en}.`, url: pedido };
     case 'pedido_cancelado':
       return {
         title: 'Pedido cancelado',
-        body: `El cliente canceló el pedido en ${zone}${when}. Tu postulación quedó sin efecto.`,
+        body: `El cliente canceló el pedido${en}${when}. Tu postulación quedó sin efecto.`,
         url: trabajo,
       };
     case 'postulacion_aceptada':
       return {
         title: '¡Te eligieron!',
-        body: `${actor} aceptó tu postulación para ${zone}${p.price_ars ? `: ${formatPrice(p.price_ars)}` : ''}${
+        body: `${actor} aceptó tu postulación${place ? ` para ${place}` : ''}${p.price_ars ? `: ${formatPrice(p.price_ars)}` : ''}${
           p.desired_at ? `, ${formatDateTime(p.desired_at, tz)}` : ''
         }. Ya podés escribirle por WhatsApp.`,
         url: trabajo,
@@ -221,21 +223,21 @@ function describe(kind: string, jobId: string | null, p: Payload): { title: stri
     case 'postulacion_rechazada':
       return {
         title: 'Eligieron a otra persona',
-        body: `El cliente eligió a otra persona para el trabajo en ${zone}. ¡Suerte con el próximo!`,
+        body: `El cliente eligió a otra persona para el trabajo${en}. ¡Suerte con el próximo!`,
         url: trabajo,
       };
     case 'trabajo_cancelado_por_cliente':
-      return { title: 'Trabajo cancelado', body: `${actor} canceló el trabajo en ${zone}${when}.`, url: trabajo };
+      return { title: 'Trabajo cancelado', body: `${actor} canceló el trabajo${en}${when}.`, url: trabajo };
     case 'trabajo_cancelado_por_cortador':
       return {
         title: 'Trabajo cancelado',
-        body: `${actor} canceló el trabajo en ${zone}${when}. Si querés, publicalo de nuevo.`,
+        body: `${actor} canceló el trabajo${en}${when}. Si querés, publicalo de nuevo.`,
         url: pedido,
       };
     case 'trabajo_realizado':
       return {
         title: 'Trabajo realizado',
-        body: `${actor} marcó como realizado el trabajo en ${zone}${when}. Contanos si volverías a trabajar con esa persona.`,
+        body: `${actor} marcó como realizado el trabajo${en}${when}. Contanos si volverías a trabajar con esa persona.`,
         url: jobId ? `/trabajo/${jobId}` : '/avisos',
       };
     default:

@@ -40,7 +40,7 @@ const must = (r, what) => {
 async function register(role) {
   const sb = newClient();
   const email = `pastocontrol.prueba.f4carrera-${role}-${stamp}@gmail.com`;
-  const data = must(await sb.auth.signUp({ email, password }), `registro ${role}`);
+  const data = must(await sb.auth.signUp({ email, password, options: { data: { terms_version: 1 } } }), `registro ${role}`);
   return { sb, uid: data.user.id, email };
 }
 async function extraSession(email) {
@@ -54,12 +54,10 @@ const clientSessions = [client.sb];
 for (let i = 0; i < 4; i++) clientSessions.push(await extraSession(client.email));
 const cutters = [];
 for (let i = 1; i <= 6; i++) cutters.push(await register(`cortador${i}`));
-
-const { data: loc } = await client.sb.from('localities').select('id').eq('slug', '25-de-mayo-bsas').single();
 const tinyJpeg = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
 must(await client.sb.rpc('upsert_my_profile', {
   p_first_name: 'Clienta', p_last_name: 'Carrera', p_phone_e164: '+5492345987400',
-  p_locality_id: loc.id, p_is_client: true, p_is_cutter: false,
+  p_is_client: true, p_is_cutter: false,
 }), 'perfil cliente');
 for (const [i, c] of cutters.entries()) {
   const avatar = `${c.uid}/a.jpg`;
@@ -67,8 +65,10 @@ for (const [i, c] of cutters.entries()) {
   c.avatar = avatar;
   must(await c.sb.rpc('upsert_my_profile', {
     p_first_name: `Cortador${i + 1}`, p_last_name: 'Carrera', p_phone_e164: `+549234598741${i}`,
-    p_locality_id: loc.id, p_is_client: false, p_is_cutter: true, p_avatar_path: avatar,
+    p_is_client: false, p_is_cutter: true, p_avatar_path: avatar,
   }), 'perfil cortador');
+  // Fase 8: la casa es obligatoria para cortar.
+  must(await c.sb.rpc('set_my_base_location', { p_lat: -35.44, p_lng: -60.18 }), 'casa cortador');
 }
 
 // ---- Helpers

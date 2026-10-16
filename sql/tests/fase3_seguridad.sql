@@ -12,8 +12,11 @@
 --   B2 = cortador que contraoferta
 --   F  = cortador de la misma localidad que nunca se postula al pedido 1
 --   C  = tercero: cliente sin rol de cortador
---   D  = cortador de OTRA localidad
+--   D  = cortador de OTRA localidad, sin ubicación base (Fase 8: la localidad no filtra; sin casa no se postula)
 --   E  = registrado sin perfil
+--
+-- Fase 8: firma nueva de upsert_my_profile y estado final de 0027 simulado dentro de la prueba
+-- (términos y ubicación base obligatorios; se deshace con el resto). Todos aceptaron los términos.
 --
 -- Esperado: 'ok' | 'err:<fragmento>' | 'count:<n>' | 'affected:<n>'
 
@@ -47,6 +50,8 @@ begin
   insert into public.localities (slug, name, province, phone_area_code, center_lat, center_lng, radius_m)
   values ('otra-localidad-prueba', 'Otra', 'Buenos Aires', '2346', -35.0, -60.0, 5000)
   returning id into loc2;
+  execute $f$create or replace function private.terms_enforced() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
+  execute $f$create or replace function private.cutter_base_required() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
 
   p1 := a || '/' || j1 || '/1.jpg';
 
@@ -57,6 +62,7 @@ begin
     (f, 'prueba-f@pastocontrol.test'), (c, 'prueba-c@pastocontrol.test'), (d, 'prueba-d@pastocontrol.test'),
     (e, 'prueba-e@pastocontrol.test')
   ) as v(u, m);
+  insert into public.terms_acceptances (user_id, version) select u, private.current_terms_version() from unnest(array[a, b, b2, f, c, d, e]) u;
 
   insert into storage.objects (bucket_id, name, owner_id) values
     ('avatars', a || '/yo.jpg', a), ('avatars', b || '/yo.jpg', b), ('avatars', b2 || '/yo.jpg', b2),
@@ -70,9 +76,10 @@ begin
     (f, loc, 'Fede', 'F', f || '/yo.jpg', false, true),
     (c, loc, 'Carla', 'C', null, true, false),
     (d, loc2, 'Dani', 'D', d || '/yo.jpg', false, true);
-  insert into public.profile_private (user_id, last_name, phone_e164) values
-    (a, 'Álvarez', '+5492345111111'), (b, 'Benítez', '+5492345222222'), (b2, 'Bustos', '+5492345222333'),
-    (f, 'Funes', '+5492345666666'), (c, 'Castro', '+5492345333333'), (d, 'Díaz', '+5492346444444');
+  insert into public.profile_private (user_id, last_name, phone_e164, base_lat, base_lng) values
+    (a, 'Álvarez', '+5492345111111', -35.43, -60.17), (b, 'Benítez', '+5492345222222', -35.43, -60.17),
+    (b2, 'Bustos', '+5492345222333', -35.43, -60.17), (f, 'Funes', '+5492345666666', -35.43, -60.17),
+    (c, 'Castro', '+5492345333333', null, null), (d, 'Díaz', '+5492346444444', null, null);
 
   insert into public.jobs (id, client_id, locality_id, zone, address_street, address_number, location_lat, location_lng, price_ars, desired_at, photo_paths) values
     (j1, a, loc, 'Barrio Centro', 'Calle Falsa', '123', -35.4324, -60.1716, 15000, now() + interval '2 days', array[p1]),
@@ -81,7 +88,7 @@ begin
   app_b := format('(select id from pg_temp.t_app where cutter_id = %L and job_id = %L)', b, j1);
   app_b2 := format('(select id from pg_temp.t_app where cutter_id = %L and job_id = %L)', b2, j1);
   app_f := format('(select id from pg_temp.t_app where cutter_id = %L and job_id = %L)', f, j2);
-  prof_b := 'select public.upsert_my_profile(''Beto'', ''Benítez'', ''+5492345222222'', %s::smallint, true, %L::boolean, %L)';
+  prof_b := 'select public.upsert_my_profile(''Beto'', ''Benítez'', ''+5492345222222'', true, %L::boolean, %L)';
 
   for t in
     select * from (values
@@ -103,7 +110,8 @@ begin
       (15, 'F', 'F se postula al pedido 2 "proponiendo" lo mismo que lo publicado', format('select public.apply_to_job(%L, 15000, (select desired_at from public.jobs where id = %L))', j2, j2), 'ok'),
       (16, 'admin', 'Proponer lo publicado se guarda como null (acepta lo publicado)', format('select 1 from public.applications where cutter_id = %L and proposed_price_ars is null and proposed_at is null', f), 'count:1'),
       (17, 'C', 'C (sin rol de cortador) no puede postularse', format('select public.apply_to_job(%L)', j2), 'err:Corto pasto'),
-      (18, 'D', 'D (otra localidad) no puede postularse', format('select public.apply_to_job(%L)', j2), 'err:No encontramos ese trabajo'),
+      (18, 'D', 'D (cortador sin ubicación base) no puede postularse', format('select public.apply_to_job(%L)', j2), 'err:desde dónde salís'),
+      (26, 'D', 'D (otra localidad) ve el pedido 2: la localidad ya no filtra (Fase 8)', format('select * from public.jobs where id = %L', j2), 'count:1'),
       (19, 'E', 'E (sin perfil) no puede postularse', format('select public.apply_to_job(%L)', j2), 'err:Corto pasto'),
       (20, 'A', 'A no puede postularse a su propio pedido', format('select public.apply_to_job(%L)', j1), 'err:propio pedido'),
       (21, 'B', 'B no puede proponer menos de $ 1.000', format('select public.apply_to_job(%L, 500)', j2), 'err:precio que proponés'),
@@ -172,8 +180,8 @@ begin
       (99, 'B', 'Lista de disponibles de B (publicados y no vencidos): de A, solo el pedido 2', format('select * from public.jobs j where j.status = ''publicado'' and not j.is_expired and j.client_id = %L', a), 'count:1'),
 
       -- Rol de cortador
-      (100, 'B', 'B no puede dejar de ser cortador con postulaciones pendientes', format(prof_b, loc, false, b || '/yo.jpg'), 'err:postulaciones activas'),
-      (101, 'B', 'B sí puede sumar el rol de cliente', format(prof_b, loc, true, b || '/yo.jpg'), 'ok'),
+      (100, 'B', 'B no puede dejar de ser cortador con postulaciones pendientes', format(prof_b, false, b || '/yo.jpg'), 'err:postulaciones activas'),
+      (101, 'B', 'B sí puede sumar el rol de cliente', format(prof_b, true, b || '/yo.jpg'), 'ok'),
 
       -- Cancelar el pedido
       (110, 'A', 'A cancela el pedido 1', format('select public.cancel_job(%L)', j1), 'ok'),
@@ -186,7 +194,7 @@ begin
       (117, 'B', 'B no puede retirar una postulación cancelada', format('select public.withdraw_application(%s)', app_b), 'err:ya no está pendiente'),
       (118, 'B', 'B no puede editar una postulación cancelada', format('select public.update_application(%s, 16000)', app_b), 'err:ya no se puede editar'),
       (119, 'B', 'B no puede volver a postularse a un pedido cancelado', format('select public.apply_to_job(%L)', j1), 'err:ya no recibe'),
-      (120, 'B', 'Sin postulaciones activas, B ya puede dejar de ser cortador', format(prof_b, loc, false, b || '/yo.jpg'), 'ok'),
+      (120, 'B', 'Sin postulaciones activas, B ya puede dejar de ser cortador', format(prof_b, false, b || '/yo.jpg'), 'ok'),
       (121, 'B', 'B sin rol de cortador no puede postularse', format('select public.apply_to_job(%L)', j2), 'err:Corto pasto'),
       (122, 'F', 'F retira su postulación al pedido 2', format('select public.withdraw_application(%s)', app_f), 'ok'),
 

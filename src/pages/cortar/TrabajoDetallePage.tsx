@@ -30,7 +30,7 @@ export function TrabajoDetallePage() {
     );
   }
 
-  // El RLS devuelve el trabajo solo si está disponible en mi localidad o si me postulé.
+  // El RLS devuelve el trabajo solo si está publicado y no venció (para cualquier cortador) o si me postulé.
   if (!job) {
     return (
       <JobUnavailable
@@ -70,7 +70,7 @@ export function TrabajoDetallePage() {
       />
 
       <Title order={1} size="h2">
-        Trabajo en {jobAddress(job)}
+        {job.address_street ? `Trabajo en ${jobAddress(job)}` : 'Trabajo'}
       </Title>
 
       {job.status === 'cancelado' && (
@@ -87,7 +87,7 @@ export function TrabajoDetallePage() {
       <Card withBorder radius="md" padding="lg">
         <Stack gap="md">
           <ClientLine client={job.client} size={48} />
-          {!showsContact && (
+          {!showsContact && job.client && (
             <Button
               component={Link}
               to={`/persona/${job.client.id}`}
@@ -114,7 +114,7 @@ export function TrabajoDetallePage() {
         </Stack>
       )}
 
-      {!showsContact && (
+      {!showsContact && job.client && (
         <Alert color="blue" icon={<IconLock aria-hidden />}>
           El nombre completo y el WhatsApp del cliente se comparten cuando acepta tu postulación.
         </Alert>

@@ -2,8 +2,8 @@
 
 export type LatLng = { lat: number; lng: number };
 
-/** Localidad con su centro y radio (los pines fuera del radio se rechazan, también en la RPC). */
-export type LocalityArea = { name: string; center_lat: number; center_lng: number; radius_m: number };
+/** Centro de la localidad por defecto: donde arranca el mapa sin GPS (la localidad ya no limita nada). */
+export type MapCenter = { center_lat: number; center_lng: number };
 
 const EARTH_RADIUS_M = 6371008.8;
 const rad = (deg: number) => (deg * Math.PI) / 180;
@@ -26,17 +26,21 @@ export function formatDistance(meters: number): string {
   return `a ${kmFormatter.format(km < 10 ? Math.round(km * 10) / 10 : Math.round(km))} km`;
 }
 
-export function localityCenter(area: LocalityArea): LatLng {
+export function localityCenter(area: MapCenter): LatLng {
   return { lat: area.center_lat, lng: area.center_lng };
 }
 
-export function isInsideLocality(area: LocalityArea, point: LatLng): boolean {
-  return distanceMeters(localityCenter(area), point) <= area.radius_m;
+// Argentina continental y Tierra del Fuego, como caja aproximada. La misma que private.check_in_argentina.
+const ARGENTINA = { minLat: -55.1, maxLat: -21.7, minLng: -73.6, maxLng: -53.6 };
+
+/** El pin vale en cualquier lugar de Argentina (aproximado: es una caja). */
+export function isInArgentina(point: LatLng): boolean {
+  return (
+    point.lat >= ARGENTINA.minLat && point.lat <= ARGENTINA.maxLat && point.lng >= ARGENTINA.minLng && point.lng <= ARGENTINA.maxLng
+  );
 }
 
-export function outsideLocalityMessage(area: LocalityArea): string {
-  return `La ubicación marcada está fuera de ${area.name}.`;
-}
+export const OUTSIDE_ARGENTINA = 'La ubicación marcada está fuera de Argentina. Revisá el pin en el mapa.';
 
 /** Ubicación de un pedido o de la casa del cortador (null en los pedidos anteriores al mapa). */
 export function pointOf(lat: number | null | undefined, lng: number | null | undefined): LatLng | null {

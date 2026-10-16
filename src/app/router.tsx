@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router';
 import { PublicOnly, RequireProfile, RequireSession } from '../auth/guards';
+import { RequireTerms } from '../legal/TermsGate';
 import { AppLayout } from '../components/AppLayout';
 import { AuthLayout } from '../components/AuthLayout';
 import { FullPageLoader } from '../components/FullPageLoader';
@@ -26,36 +27,48 @@ export const router = createBrowserRouter([
             ],
           },
           { path: 'nueva-clave', lazy: () => import('../pages/auth/NuevaClavePage').then((m) => ({ Component: m.NuevaClavePage })) },
+          // Públicas, con sesión o sin ella (se linkean desde el registro, el ingreso y el perfil).
+          { path: 'terminos', lazy: () => import('../pages/legal/TerminosPage').then((m) => ({ Component: m.TerminosPage })) },
+          { path: 'privacidad', lazy: () => import('../pages/legal/PrivacidadPage').then((m) => ({ Component: m.PrivacidadPage })) },
+          { path: 'borrar-cuenta', lazy: () => import('../pages/legal/BorrarCuentaInfoPage').then((m) => ({ Component: m.BorrarCuentaInfoPage })) },
+          { path: 'cuenta-borrada', lazy: () => import('../account/CuentaBorradaPage').then((m) => ({ Component: m.CuentaBorradaPage })) },
         ],
       },
       {
         element: <RequireSession />,
         children: [
           {
-            element: <AuthLayout />,
+            // Sin aceptar la versión vigente de los términos solo se puede borrar la cuenta (y cancelar lo pendiente).
+            element: <RequireTerms />,
             children: [
-              { path: 'bienvenida', lazy: () => import('../pages/BienvenidaPage').then((m) => ({ Component: m.BienvenidaPage })) },
-            ],
-          },
-          {
-            element: <RequireProfile />,
-            children: [
-              { index: true, element: <RootRedirect /> },
               {
-                element: <AppLayout />,
+                element: <AuthLayout />,
                 children: [
-                  { path: 'pedir', lazy: () => import('../pages/pedir/MisPedidosPage').then((m) => ({ Component: m.MisPedidosPage })) },
-                  { path: 'pedir/nuevo', lazy: () => import('../pages/pedir/NuevoPedidoPage').then((m) => ({ Component: m.NuevoPedidoPage })) },
-                  { path: 'pedir/pedido/:jobId', lazy: () => import('../pages/pedir/PedidoDetallePage').then((m) => ({ Component: m.PedidoDetallePage })) },
-                  { path: 'pedir/pedido/:jobId/editar', lazy: () => import('../pages/pedir/EditarPedidoPage').then((m) => ({ Component: m.EditarPedidoPage })) },
-                  { path: 'cortar', lazy: () => import('../pages/cortar/TrabajosPage').then((m) => ({ Component: m.TrabajosPage })) },
-                  { path: 'cortar/trabajo/:jobId', lazy: () => import('../pages/cortar/TrabajoDetallePage').then((m) => ({ Component: m.TrabajoDetallePage })) },
-                  { path: 'cortar/postulaciones', lazy: () => import('../pages/cortar/MisPostulacionesPage').then((m) => ({ Component: m.MisPostulacionesPage })) },
-                  { path: 'trabajo/:jobId', lazy: () => import('../pages/TrabajoRedirectPage').then((m) => ({ Component: m.TrabajoRedirectPage })) },
-                  { path: 'persona/:personId', lazy: () => import('../pages/PersonaPage').then((m) => ({ Component: m.PersonaPage })) },
-                  { path: 'avisos', lazy: () => import('../pages/AvisosPage').then((m) => ({ Component: m.AvisosPage })) },
-                  { path: 'perfil', lazy: () => import('../pages/PerfilPage').then((m) => ({ Component: m.PerfilPage })) },
-                  { path: '*', lazy: () => import('../pages/NotFoundPage').then((m) => ({ Component: m.NotFoundPage })) },
+                  { path: 'bienvenida', lazy: () => import('../pages/BienvenidaPage').then((m) => ({ Component: m.BienvenidaPage })) },
+                  { path: 'cuenta/borrar', lazy: () => import('../account/BorrarCuentaPage').then((m) => ({ Component: m.BorrarCuentaPage })) },
+                ],
+              },
+              {
+                element: <RequireProfile />,
+                children: [
+                  { index: true, element: <RootRedirect /> },
+                  {
+                    element: <AppLayout />,
+                    children: [
+                      { path: 'pedir', lazy: () => import('../pages/pedir/MisPedidosPage').then((m) => ({ Component: m.MisPedidosPage })) },
+                      { path: 'pedir/nuevo', lazy: () => import('../pages/pedir/NuevoPedidoPage').then((m) => ({ Component: m.NuevoPedidoPage })) },
+                      { path: 'pedir/pedido/:jobId', lazy: () => import('../pages/pedir/PedidoDetallePage').then((m) => ({ Component: m.PedidoDetallePage })) },
+                      { path: 'pedir/pedido/:jobId/editar', lazy: () => import('../pages/pedir/EditarPedidoPage').then((m) => ({ Component: m.EditarPedidoPage })) },
+                      { path: 'cortar', lazy: () => import('../pages/cortar/TrabajosPage').then((m) => ({ Component: m.TrabajosPage })) },
+                      { path: 'cortar/trabajo/:jobId', lazy: () => import('../pages/cortar/TrabajoDetallePage').then((m) => ({ Component: m.TrabajoDetallePage })) },
+                      { path: 'cortar/postulaciones', lazy: () => import('../pages/cortar/MisPostulacionesPage').then((m) => ({ Component: m.MisPostulacionesPage })) },
+                      { path: 'trabajo/:jobId', lazy: () => import('../pages/TrabajoRedirectPage').then((m) => ({ Component: m.TrabajoRedirectPage })) },
+                      { path: 'persona/:personId', lazy: () => import('../pages/PersonaPage').then((m) => ({ Component: m.PersonaPage })) },
+                      { path: 'avisos', lazy: () => import('../pages/AvisosPage').then((m) => ({ Component: m.AvisosPage })) },
+                      { path: 'perfil', lazy: () => import('../pages/PerfilPage').then((m) => ({ Component: m.PerfilPage })) },
+                      { path: '*', lazy: () => import('../pages/NotFoundPage').then((m) => ({ Component: m.NotFoundPage })) },
+                    ],
+                  },
                 ],
               },
             ],

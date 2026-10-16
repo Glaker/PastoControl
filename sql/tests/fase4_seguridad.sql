@@ -16,6 +16,11 @@
 --   C  = tercero: cliente sin rol de cortador
 --   D  = cortador de OTRA localidad
 --
+-- Fase 8: la regla «no se cambia de localidad con cosas activas» ya no existe (la localidad no se elige):
+-- los casos 75-84 ahora verifican que editar los datos no la toca y las reglas que siguen (roles,
+-- ubicación base obligatoria). Firma nueva de upsert_my_profile y estado final de 0027 simulado
+-- dentro de la prueba (términos y ubicación base obligatorios; se deshace con el resto).
+--
 -- Esperado: 'ok' | 'err:<fragmento>' | 'count:<n>' | 'affected:<n>'
 
 do $test$
@@ -49,6 +54,8 @@ begin
   insert into public.localities (slug, name, province, phone_area_code, center_lat, center_lng, radius_m)
   values ('otra-localidad-prueba', 'Otra', 'Buenos Aires', '2346', -35.0, -60.0, 5000)
   returning id into loc2;
+  execute $f$create or replace function private.terms_enforced() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
+  execute $f$create or replace function private.cutter_base_required() returns boolean language sql immutable set search_path = '' as 'select true'$f$;
 
   insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
   select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', m, '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}'
@@ -56,6 +63,7 @@ begin
     (a, 'prueba-a@pastocontrol.test'), (b, 'prueba-b@pastocontrol.test'), (b2, 'prueba-b2@pastocontrol.test'),
     (f, 'prueba-f@pastocontrol.test'), (c, 'prueba-c@pastocontrol.test'), (d, 'prueba-d@pastocontrol.test')
   ) as v(u, m);
+  insert into public.terms_acceptances (user_id, version) select u, private.current_terms_version() from unnest(array[a, b, b2, f, c, d]) u;
 
   insert into storage.objects (bucket_id, name, owner_id) values
     ('avatars', a || '/yo.jpg', a), ('avatars', b || '/yo.jpg', b), ('avatars', b2 || '/yo.jpg', b2),
@@ -68,9 +76,10 @@ begin
     (f, loc, 'Fede', 'F', f || '/yo.jpg', false, true),
     (c, loc, 'Carla', 'C', null, true, false),
     (d, loc2, 'Dani', 'D', d || '/yo.jpg', false, true);
-  insert into public.profile_private (user_id, last_name, phone_e164) values
-    (a, 'Álvarez', '+5492345111111'), (b, 'Benítez', '+5492345222222'), (b2, 'Bustos', '+5492345222333'),
-    (f, 'Funes', '+5492345666666'), (c, 'Castro', '+5492345333333'), (d, 'Díaz', '+5492346444444');
+  insert into public.profile_private (user_id, last_name, phone_e164, base_lat, base_lng) values
+    (a, 'Álvarez', '+5492345111111', null, null), (b, 'Benítez', '+5492345222222', -35.43, -60.17),
+    (b2, 'Bustos', '+5492345222333', -35.43, -60.17), (f, 'Funes', '+5492345666666', -35.43, -60.17),
+    (c, 'Castro', '+5492345333333', null, null), (d, 'Díaz', '+5492346444444', -34.60, -58.38);
 
   insert into public.jobs (id, client_id, locality_id, zone, address_street, address_number, location_lat, location_lng, price_ars, desired_at) values
     (j1, a, loc, 'Barrio Centro', 'Calle Falsa', '123', -35.4324, -60.1716, 15000, now() + interval '2 days'),
@@ -79,7 +88,7 @@ begin
     (j4, a, loc, 'El Ombú', 'Belgrano', '9', -35.4280, -60.1650, 15000, now() + interval '5 days');
 
   accept := 'select public.accept_application(' || app || ', ' || fresh || ')';
-  prof := 'select public.upsert_my_profile(%L, %L, %L, %s::smallint, %L::boolean, %L::boolean, %L)';
+  prof := 'select public.upsert_my_profile(%L, %L, %L, %L::boolean, %L::boolean, %L)';
 
   for t in
     select * from (values
@@ -131,7 +140,7 @@ begin
       (47, 'B2', 'B2 (rechazado) no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (48, 'F', 'F (no postulado) no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (49, 'C', 'C (tercero) no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
-      (50, 'D', 'D (otra localidad) no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
+      (50, 'D', 'D (otra localidad, no postulado) no recibe el contacto', format('select * from public.get_job_contact(%L)', j1), 'err:No encontramos los datos'),
       (51, 'B', 'B no puede leer el teléfono ni el apellido de A directo (solo por get_job_contact)', format('select * from public.profile_private where user_id = %L', a), 'count:0'),
       (52, 'B', 'B sigue sin poder leer profile_private de A directo', format('select * from public.profile_private where user_id = %L', a), 'count:0'),
       (53, 'B2', 'B2 ve el pedido asignado (se había postulado) con su dirección, pero no el teléfono ni el apellido de A', format('select 1 from public.jobs j where j.id = %L and j.status = ''asignado'' and j.address_street = ''Calle Falsa'' and not exists (select 1 from public.profile_private pp where pp.user_id = %L)', j1, a), 'count:1'),
@@ -164,18 +173,17 @@ begin
       (70, 'B', 'B (postulado pendiente) no puede cancelar el pedido 2', format('select public.cancel_job(%L)', j2), 'err:No encontramos ese pedido'),
 
       -- Localidad
-      (75, 'B', 'B (postulación pendiente) no puede cambiar de localidad', format(prof, 'Beto', 'Benítez', '+5492345222222', loc2, false, true, b || '/yo.jpg'), 'err:No podés cambiar de localidad'),
-      (76, 'A', 'A (pedido publicado) no puede cambiar de localidad', format(prof, 'Ana', 'Álvarez', '+5492345111111', loc2, true, false, a || '/yo.jpg'), 'err:No podés cambiar de localidad'),
-      (77, 'C', 'C (sin pedidos ni postulaciones activas) sí puede', format(prof, 'Carla', 'Castro', '+5492345333333', loc2, true, false, null), 'ok'),
+      (75, 'B', 'B (postulación pendiente) edita sus datos: ya no hay regla de localidad (Fase 8)', format(prof, 'Beto', 'Benítez', '+5492345222222', false, true, b || '/yo.jpg'), 'ok'),
+      (76, 'A', 'A (pedido publicado) edita sus datos', format(prof, 'Ana', 'Álvarez', '+5492345111111', true, false, a || '/yo.jpg'), 'ok'),
+      (77, 'C', 'C (sin pedidos ni postulaciones activas) edita sus datos', format(prof, 'Carla', 'Castro', '+5492345333333', true, false, null), 'ok'),
       (78, 'B', 'B retira su postulación al pedido 2', format('select public.withdraw_application(' || app || ')', b, j2), 'ok'),
-      (79, 'B', 'Sin nada activo, B ya puede cambiar de localidad', format(prof, 'Beto', 'Benítez', '+5492345222222', loc2, false, true, b || '/yo.jpg'), 'ok'),
+      (79, 'admin', 'Editar los datos no toca la localidad (D sigue en la suya, los demás en la de por defecto)', format('select 1 from public.profiles where (id in (%L, %L, %L) and locality_id = %s) or (id = %L and locality_id = %s)', a, b, c, loc, d, loc2), 'count:4'),
       (80, 'A', 'A acepta a B2 en el pedido 4 (con su precio propuesto)', format(accept, b2, j4, b2, j4), 'ok'),
       (81, 'admin', 'El acuerdo del 4 usa el precio propuesto ($ 25.000)', format('select 1 from public.jobs j join public.job_agreements g on g.job_id = j.id where j.id = %L and g.price_ars = 25000 and g.agreed_at = j.desired_at', j4), 'count:1'),
-      (82, 'B2', 'B2 (aceptado en un trabajo asignado) no puede cambiar de localidad', format(prof, 'Bruno', 'Bustos', '+5492345222333', loc2, false, true, b2 || '/yo.jpg'), 'err:No podés cambiar de localidad'),
-      (83, 'B2', 'B2 tampoco puede dejar de ser cortador', format(prof, 'Bruno', 'Bustos', '+5492345222333', loc, true, false, b2 || '/yo.jpg'), 'err:postulaciones activas'),
-      (84, 'B2', 'B2 sí puede editar sus datos sin cambiar de localidad', format(prof, 'Bruno', 'Bustos', '+5492345222334', loc, false, true, b2 || '/yo.jpg'), 'ok'),
+      (82, 'B2', 'B2 (cortador) no puede borrar su ubicación base: es obligatoria para cortar (Fase 8)', 'select public.set_my_base_location(null, null)', 'err:no borrarla'),
+      (83, 'B2', 'B2 tampoco puede dejar de ser cortador', format(prof, 'Bruno', 'Bustos', '+5492345222333', true, false, b2 || '/yo.jpg'), 'err:postulaciones activas'),
+      (84, 'B2', 'B2 sí puede editar sus datos', format(prof, 'Bruno', 'Bustos', '+5492345222334', false, true, b2 || '/yo.jpg'), 'ok'),
 
-      -- Estructura y datos
       (90, 'admin', 'Las RPCs nuevas son SECURITY DEFINER con search_path vacío', 'select 1 from pg_proc where pronamespace = ''public''::regnamespace and proname in (''accept_application'', ''get_job_applicants'', ''get_job_contact'') and prosecdef and proconfig @> array[''search_path=""'']', 'count:3'),
       (91, 'admin', 'anon no puede ejecutar las RPCs nuevas', 'select 1 from pg_proc p where p.pronamespace = ''public''::regnamespace and p.proname in (''accept_application'', ''get_job_applicants'', ''get_job_contact'') and has_function_privilege(''anon'', p.oid, ''execute'')', 'count:0'),
       (92, 'admin', 'jobs sigue sin columnas de teléfono ni apellido', 'select 1 from information_schema.columns where table_schema = ''public'' and table_name = ''jobs'' and column_name ilike any (array[''%phone%'', ''%telef%'', ''%last_name%'', ''%apellido%''])', 'count:0'),

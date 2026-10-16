@@ -11,6 +11,7 @@ import { jobAddress, jobKeys, jobPoint, useJob } from '../../jobs/queries';
 import { createJob, type JobInput } from '../../jobs/saveJob';
 import { confirmAction } from '../../lib/confirm';
 import { formatDateTimeLong, formatPrice } from '../../lib/format';
+import { localityCenter } from '../../lib/geo';
 import { useMyProfile } from '../../profile/queries';
 
 export function NuevoPedidoPage() {
@@ -39,7 +40,7 @@ export function NuevoPedidoPage() {
       confirmIcon: <IconSpeakerphone size={20} aria-hidden />,
       message: (
         <Stack gap="xs">
-          <Text>Lo van a ver los cortadores de {locality.name}:</Text>
+          <Text>Lo van a ver los cortadores que buscan trabajo cerca:</Text>
           <Text fw={700} size="lg">
             {formatPrice(input.priceArs)}
           </Text>
@@ -81,13 +82,14 @@ export function NuevoPedidoPage() {
       )}
       <JobForm
         key={from?.id ?? 'nuevo'}
-        locality={locality}
+        timeZone={locality.timezone}
+        defaultCenter={localityCenter(locality)}
         copyPhotos={!!from}
         initial={
           from
             ? {
                 location: jobPoint(from),
-                street: from.address_street,
+                street: from.address_street ?? '',
                 number: from.address_number ?? '',
                 between: from.address_between ?? '',
                 zone: from.zone ?? '',

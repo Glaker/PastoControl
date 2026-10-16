@@ -6,11 +6,9 @@ import {
   getCurrentPosition,
   GeoError,
   isCoarsePointer,
-  isInsideLocality,
-  localityCenter,
-  outsideLocalityMessage,
+  isInArgentina,
+  OUTSIDE_ARGENTINA,
   type LatLng,
-  type LocalityArea,
 } from '../lib/geo';
 import { LocationPickerMap } from './lazy';
 import type { MapView } from './LeafletMaps';
@@ -19,7 +17,8 @@ type Props = {
   label: string;
   description: string;
   required?: boolean;
-  locality: LocalityArea;
+  /** Dónde arranca el mapa sin pin ni GPS (25 de Mayo, la localidad por defecto). */
+  defaultCenter: LatLng;
   value: LatLng | null;
   onChange: (value: LatLng) => void;
   error?: string | null;
@@ -30,15 +29,16 @@ const IMPRECISE_M = 50;
 
 /**
  * Ubicación con un pin: botón grande "Usar mi ubicación actual" y un mapa donde el pin se pone tocando y
- * se ajusta arrastrándolo. Sin pin, el mapa arranca en el centro de la localidad; si el permiso de
- * ubicación ya estaba dado, se mueve a donde estás (sin poner el pin: puede que no estés en el terreno).
+ * se ajusta arrastrándolo. Vale en cualquier lugar de Argentina. Sin pin, el mapa arranca en el centro por
+ * defecto; si el permiso de ubicación ya estaba dado, se mueve a donde estás (sin poner el pin: puede que no
+ * estés en el terreno). Se puede mover y marcar en cualquier lado.
  */
-export function LocationField({ label, description, required, locality, value, onChange, error }: Props) {
+export function LocationField({ label, description, required, defaultCenter, value, onChange, error }: Props) {
   const [locating, setLocating] = useState(false);
   const [gpsMessage, setGpsMessage] = useState<string | null>(null);
   const [imprecise, setImprecise] = useState<number | null>(null);
   const [view, setView] = useState<MapView | null>(null);
-  const [initialCenter] = useState<LatLng>(() => value ?? localityCenter(locality));
+  const [initialCenter] = useState<LatLng>(() => value ?? defaultCenter);
   const hasPin = useRef(!!value);
   hasPin.current = !!value;
 
@@ -49,11 +49,11 @@ export function LocationField({ label, description, required, locality, value, o
       if ((await geolocationPermission()) !== 'granted') return;
       try {
         const here = await getCurrentPosition();
-        if (!cancelled && !hasPin.current && isInsideLocality(locality, here)) {
+        if (!cancelled && !hasPin.current && isInArgentina(here)) {
           setView({ center: here, zoom: 16, token: Date.now() });
         }
       } catch {
-        // Sin GPS: queda el centro de la localidad.
+        // Sin GPS: queda el centro por defecto.
       }
     })();
     return () => {
@@ -68,8 +68,8 @@ export function LocationField({ label, description, required, locality, value, o
     setLocating(true);
     try {
       const here = await getCurrentPosition();
-      if (!isInsideLocality(locality, here)) {
-        setGpsMessage(`Tu ubicación actual está fuera de ${locality.name}. Marcá el lugar tocando el mapa.`);
+      if (!isInArgentina(here)) {
+        setGpsMessage('Tu ubicación actual está fuera de Argentina. Marcá el lugar tocando el mapa.');
         return;
       }
       const point = { lat: here.lat, lng: here.lng };
@@ -83,7 +83,7 @@ export function LocationField({ label, description, required, locality, value, o
     }
   };
 
-  const outside = value && !isInsideLocality(locality, value) ? outsideLocalityMessage(locality) : null;
+  const outside = value && !isInArgentina(value) ? OUTSIDE_ARGENTINA : null;
 
   return (
     <Input.Wrapper

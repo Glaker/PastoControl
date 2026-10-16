@@ -8,6 +8,7 @@ import dayjs from '../lib/dayjs';
 import { friendlyError } from '../lib/errors';
 import { jobDisplayStatus, jobKeys, type Job } from '../jobs/queries';
 import { AssignedPanel } from '../assignment/AssignedPanel';
+import { DELETED_USER } from '../profile/queries';
 import { ApplicationForm } from './ApplicationForm';
 import { ApplicationStatusBadge, ProposalSummary } from './ApplicationParts';
 import { applicationKeys, withdrawApplication, type Application } from './queries';
@@ -94,16 +95,17 @@ export function ApplicationPanel({ job, application }: Props) {
 
   // Me eligieron: contacto del cliente (dirección y WhatsApp), marcar realizado / calificar, cancelar.
   if (application.status === 'aceptada' && (job.status === 'asignado' || job.status === 'realizado')) {
+    const clientName = job.client?.first_name ?? DELETED_USER;
     return (
       <Stack gap="md">
         {job.status === 'asignado' ? (
           <Alert color="teal" icon={<IconConfetti aria-hidden />} title="¡Te eligieron!">
-            {job.client.first_name} aceptó tu postulación. Escribile por WhatsApp para coordinar. Cuando
+            {clientName} aceptó tu postulación. Escribile por WhatsApp para coordinar. Cuando
             termines, cualquiera de los dos lo marca como realizado.
           </Alert>
         ) : (
           <Alert color="teal" icon={<IconConfetti aria-hidden />} title="Trabajo realizado">
-            ¡Buen trabajo! Si querés, calificá a {job.client.first_name}.
+            {job.client ? `¡Buen trabajo! Si querés, calificá a ${clientName}.` : '¡Buen trabajo!'}
           </Alert>
         )}
         <AssignedPanel job={job} viewer="cortador" />

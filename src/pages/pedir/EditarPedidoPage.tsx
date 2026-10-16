@@ -8,6 +8,7 @@ import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobForm } from '../../jobs/JobForm';
 import { JobUnavailable, LoadFailed } from '../../jobs/JobPageParts';
 import { jobKeys, jobPoint, pendingCount, useJob } from '../../jobs/queries';
+import { localityCenter } from '../../lib/geo';
 import { updateJob, type JobInput } from '../../jobs/saveJob';
 
 export function EditarPedidoPage() {
@@ -65,10 +66,11 @@ export function EditarPedidoPage() {
         Editar pedido
       </Title>
       <JobForm
-        locality={job.locality}
+        timeZone={job.locality.timezone}
+        defaultCenter={localityCenter(job.locality)}
         initial={{
           location: jobPoint(job),
-          street: job.address_street,
+          street: job.address_street ?? '',
           number: job.address_number ?? '',
           between: job.address_between ?? '',
           zone: job.zone ?? '',

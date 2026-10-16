@@ -32,13 +32,12 @@ const tinyJpeg = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP////////////////
 async function signUp(role, phone, cutter) {
   const sb = createClient(URL_, KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const email = `pastocontrol.prueba.mapa-${role}-${stamp}@gmail.com`;
-  const data = must(await sb.auth.signUp({ email, password }), `registro ${role}`);
+  const data = must(await sb.auth.signUp({ email, password, options: { data: { terms_version: 1 } } }), `registro ${role}`);
   const uid = data.user.id;
-  const { data: loc } = await sb.from('localities').select('id').eq('slug', '25-de-mayo-bsas').single();
   if (cutter) must(await sb.storage.from('avatars').upload(`${uid}/a.jpg`, tinyJpeg, { contentType: 'image/jpeg' }), 'avatar');
   must(await sb.rpc('upsert_my_profile', {
     p_first_name: role === 'cliente' ? 'Clara' : 'Cosme', p_last_name: role === 'cliente' ? 'Pruebas' : 'Cortes',
-    p_phone_e164: phone, p_locality_id: loc.id, p_is_client: !cutter, p_is_cutter: cutter,
+    p_phone_e164: phone, p_is_client: !cutter, p_is_cutter: cutter,
     p_avatar_path: cutter ? `${uid}/a.jpg` : undefined,
   }), `perfil ${role}`);
   return { sb, uid, email };
