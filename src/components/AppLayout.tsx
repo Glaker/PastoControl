@@ -1,5 +1,5 @@
-import { AppShell, Avatar, Badge, Button, Container, SegmentedControl, Text, VisuallyHidden } from '@mantine/core';
-import { Link, Navigate, NavLink, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
+import { AppShell, Avatar, Badge, Button, Container, Text, VisuallyHidden } from '@mantine/core';
+import { Link, Navigate, NavLink, Outlet, useLocation, useMatches } from 'react-router';
 import { IconClipboardList, IconPlus, IconScissors } from '@tabler/icons-react';
 import { MODES, modeFromPath, type Mode, type NavItem } from '../app/modes';
 import { useCurrentMode } from '../app/useCurrentMode';
@@ -115,33 +115,40 @@ export function AppLayout() {
   );
 }
 
-/** Selector «Pedir corte / Cortar» sobre la barra de color: el modo activo en blanco. */
+/**
+ * Selector «Pedir corte / Cortar» sobre la barra de color: una pastilla con las dos opciones (links a cada modo)
+ * y un fondo blanco que se desliza hasta la activa.
+ */
 function ModeSwitcher({ mode, modes, className }: { mode: Mode; modes: Mode[]; className?: string }) {
-  const navigate = useNavigate();
-
+  const activeIndex = modes.indexOf(mode);
   return (
-    <div className={className} style={{ ['--switch-active' as string]: `var(--mantine-color-${MODES[mode].color}-8)` }}>
-      <SegmentedControl
-        fullWidth
-        aria-label="Elegí qué querés hacer"
-        value={mode}
-        color="white"
-        classNames={{ root: classes.switcherRoot, control: classes.switcherControl, label: classes.switcherTouch }}
-        onChange={(value) => navigate(MODES[value as Mode].home)}
-        data={modes.map((m) => {
-          const Icon = MODE_ICONS[m];
-          return {
-            value: m,
-            label: (
-              <span className={classes.switcherLabel}>
-                <Icon size={20} stroke={2} aria-hidden />
-                <span>{MODES[m].label}</span>
-              </span>
-            ),
-          };
-        })}
-      />
-    </div>
+    <nav
+      aria-label="Elegí qué querés hacer"
+      className={`${classes.modeToggle} ${className ?? ''}`}
+      style={{
+        ['--toggle-count' as string]: modes.length,
+        ['--toggle-index' as string]: activeIndex,
+        ['--toggle-active' as string]: `var(--mantine-color-${MODES[mode].color}-8)`,
+      }}
+    >
+      <span className={classes.modeThumb} aria-hidden />
+      {modes.map((m) => {
+        const Icon = MODE_ICONS[m];
+        const active = m === mode;
+        return (
+          <Link
+            key={m}
+            to={MODES[m].home}
+            className={classes.modeOption}
+            data-active={active || undefined}
+            aria-current={active ? 'true' : undefined}
+          >
+            <Icon size={20} stroke={2} aria-hidden />
+            <span>{MODES[m].label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
