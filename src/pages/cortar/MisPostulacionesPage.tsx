@@ -1,5 +1,5 @@
 import { Button, Card, Group, Stack, Text, Title } from '@mantine/core';
-import { IconChevronRight, IconHome, IconListSearch } from '@tabler/icons-react';
+import { IconChevronRight, IconHome, IconListSearch, IconSend } from '@tabler/icons-react';
 import { Link } from 'react-router';
 import { ApplicationStatusBadge, ProposalSummary } from '../../applications/ApplicationParts';
 import { useMyApplications, type MyApplication } from '../../applications/queries';
@@ -8,6 +8,8 @@ import { JobStatusBadge } from '../../jobs/JobStatusBadge';
 import { LoadFailed } from '../../jobs/JobPageParts';
 import { jobAddress, jobDisplayStatus } from '../../jobs/queries';
 import classes from '../../jobs/jobs.module.css';
+import { EmptyState } from '../../components/EmptyState';
+import { CardGrid } from '../../components/CardGrid';
 
 export function MisPostulacionesPage() {
   const { data: applications, isPending, error, refetch } = useMyApplications();
@@ -29,9 +31,9 @@ export function MisPostulacionesPage() {
 
       {applications.length === 0 && (
         <>
-          <Card withBorder radius="md" padding="lg">
-            <Text>Todavía no te postulaste a ningún trabajo.</Text>
-          </Card>
+          <EmptyState icon={IconSend} title="Todavía no te postulaste a ningún trabajo">
+            <Text c="dimmed">Mirá los trabajos cerca tuyo y postulate a los que te sirvan.</Text>
+          </EmptyState>
           <Button component={Link} to="/cortar" leftSection={<IconListSearch size={20} aria-hidden />}>
             Ver trabajos disponibles
           </Button>
@@ -43,9 +45,11 @@ export function MisPostulacionesPage() {
           <Title order={2} size="h3">
             Activas
           </Title>
-          {active.map((a) => (
-            <ApplicationCard key={a.id} application={a} />
-          ))}
+          <CardGrid>
+            {active.map((a) => (
+              <ApplicationCard key={a.id} application={a} />
+            ))}
+          </CardGrid>
         </Stack>
       )}
 
@@ -54,9 +58,11 @@ export function MisPostulacionesPage() {
           <Title order={2} size="h3">
             Anteriores
           </Title>
-          {past.map((a) => (
-            <ApplicationCard key={a.id} application={a} />
-          ))}
+          <CardGrid>
+            {past.map((a) => (
+              <ApplicationCard key={a.id} application={a} />
+            ))}
+          </CardGrid>
         </Stack>
       )}
     </Stack>

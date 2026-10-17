@@ -1,16 +1,26 @@
 import { Alert, Button, Container, Stack } from '@mantine/core';
 import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
+import { lazy, Suspense } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { FullPageLoader } from '../components/FullPageLoader';
 import { friendlyError } from '../lib/errors';
 import { useMyProfile } from '../profile/queries';
 import { useAuth } from './AuthProvider';
 
-/** Solo con sesión iniciada; si no, a /ingresar (y después vuelve adonde iba). */
+const LandingPage = lazy(() => import('../pages/LandingPage').then((m) => ({ default: m.LandingPage })));
+
+/** Solo con sesión iniciada; si no, a /ingresar (y después vuelve adonde iba). En "/" sin sesión, la landing. */
 export function RequireSession() {
   const { session, loading } = useAuth();
   const location = useLocation();
   if (loading) return <FullPageLoader />;
+  if (!session && location.pathname === '/') {
+    return (
+      <Suspense fallback={<FullPageLoader />}>
+        <LandingPage />
+      </Suspense>
+    );
+  }
   if (!session) return <Navigate to="/ingresar" replace state={{ from: location.pathname }} />;
   return <Outlet />;
 }

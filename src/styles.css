@@ -12,3 +12,10 @@ body {
 img {
   max-width: 100%;
 }
+
+/* Títulos un poco más apretados (los de Mantine y los de las pantallas). */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.015em;
+}

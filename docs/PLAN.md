@@ -17,6 +17,7 @@ Se actualiza al cerrar cada fase.
 | 6 | Web Push: avisos al celular, «Activar avisos», instalar la app (Android e iPhone) | 🟡 implementada, esperando revisión y prueba en el celular |
 | 7 | Dirección visible, ubicación en el mapa y trabajos cercanos | 🟡 implementada, deployada y verificada; esperando revisión |
 | 8 | Términos y privacidad, borrar la cuenta, cualquier ciudad (radio por distancia) | 🟡 implementada, deployada (0026, front y 0027) y verificada; esperando revisión |
+| 9 | Landing pública, Open Graph, pulido de la interfaz, recordatorio «¿Ya cortaron?», limpieza programada | 🟡 implementada; 0028 y send-push deployados; 0029 y cleanup-photos esperan aprobación; front sin deployar |
 
 Deploy: https://pastocontrol.vercel.app (Vercel). El ciclo completo se probó en celular y PC.
 
@@ -76,7 +77,7 @@ operada con el MCP (limitado a este proyecto).
 ### Edge Functions
 - Código en `supabase/functions/<nombre>/index.ts` (la estructura de la CLI), deploy con
   `deploy_edge_function` del MCP. Lo deployado tiene que ser idéntico al archivo del repo.
-- `send-push` (Fase 6, `verify_jwt` false, secreto compartido) y `delete-account` (Fase 8, `verify_jwt` true:
+- `cleanup-photos` (Fase 9, `verify_jwt` false, mismo secreto que send-push; la llama pg_cron), `send-push` (Fase 6, `verify_jwt` false, secreto compartido) y `delete-account` (Fase 8, `verify_jwt` true:
   la llama la app con la sesión; además verifica el JWT con `auth.getUser` y la contraseña). La clave de servicio
   solo la usan las funciones (la pone Supabase como variable; no hay que cargarla).
 - Secretos (`VAPID_PRIVATE_KEY`, `PUSH_WEBHOOK_SECRET`): los carga el dueño en Supabase → Edge Functions → Secrets. Nunca en el
@@ -780,17 +781,38 @@ cambios en router, Registrarse, Ingresar, Bienvenida, Perfil, ProfileForm, BaseL
 jobs/queries, JobCard, JobForm, LocationField, geo, phone, AssignedPanel, ApplicantsList, ApplicationPanel,
 TrabajoDetalle, Nuevo/Editar pedido, PersonaPage, describe y `send-push`.
 
+### Fase 9 · Landing, interfaz y tareas programadas (implementada; esperando revisión)
+- [x] Landing pública en `/` sin sesión (`src/pages/LandingPage.tsx`, la muestra `RequireSession`): portada,
+  cómo funciona (pedir / cortar), beneficios, preguntas frecuentes y links legales. Con sesión, `/` sigue igual.
+- [x] Open Graph y Twitter card en `index.html`; imagen `public/og-image.png` (1200×630, fuente en
+  `scripts/og/og-image.svg`, se regenera con `rsvg-convert`). No se precachea en la PWA (`globIgnores`).
+- [x] Interfaz: sombras y títulos en el tema, encabezado con brillo, navegación inferior con pastilla en el
+  ítem activo, tarjetas de pedidos con hover, layout de ingreso con franja verde y tarjeta, `EmptyState` en
+  las listas vacías. Verificado a 360 px sin scroll horizontal (landing e ingreso; las pantallas con sesión
+  no se miraron en el navegador).
+- [x] Escritorio (desde 62em = 992 px, `DESKTOP_QUERY` en `AppLayout`): menú lateral en vez de la barra de abajo,
+  selector de modo en el encabezado, listas (`handle: { wide: true }` en el router) a 1140 px con las tarjetas
+  en dos columnas (`CardGrid`), el resto a 720 px. En Trabajos, origen y distancia lado a lado. En el celular no
+  cambia nada. Sin probar con sesión en el navegador (solo typecheck y build).
+- [x] Recordatorio «¿Ya cortaron?» (`0028`): pg_cron diario a las 10:00 (AR), `private.remind_unfinished_jobs`,
+  aviso `recordatorio_realizado` a las dos partes desde el día siguiente al acordado y hasta 7 días después,
+  uno por trabajo (dedupe_key). Texto en `describe.tsx` y `send-push` (deployado, v9).
+- [ ] Limpieza (`0029`, destructivo, espera aprobación): `private.prune_notifications` (leídos > 90 días,
+  todos > 365) y fotos huérfanas (`get_orphan_job_photos`, solo service_role → Edge Function `cleanup-photos`,
+  verify_jwt false, mismo secreto que send-push). Deployar `cleanup-photos` antes de ejecutar `0029`.
+- Advisors (16/10/2026): solo lo esperado (RPCs SECURITY DEFINER para authenticated, tablas sin políticas a
+  propósito). Pendiente del dueño: «Leaked password protection» en Auth (panel de Supabase).
+
 ### Pendientes futuros (sin fase asignada)
 - Limpieza de fotos huérfanas en `job-photos`: archivos subidos cuyo `create_job` nunca se completó
   (se cerró la app, se cortó la red entre la subida y la RPC). Hoy el front borra lo subido si la RPC
   falla, pero si el navegador se cierra en el medio quedan en `<uid>/<job_id>/` sin pedido. Opciones:
   tarea periódica (Edge Function con cron) que borre por la API de Storage los objetos de más de 24 h
   cuya carpeta no corresponde a ningún `jobs.id` o que no estén en `photo_paths`.
-- Retención de `notifications` (borrar o archivar las leídas viejas).
-- Recordatorio «¿Ya cortaron?»: el día después de la fecha acordada, si el trabajo sigue asignado (nadie
-  lo marcó realizado), aviso a las dos partes para que lo marquen. Necesita un proceso programado
-  (pg_cron o Edge Function con cron) que inserte el aviso con `private.notify` y una dedupe_key por trabajo.
-- Mejorar la interfaz (hoy muy simple). Va al final, cuando el flujo esté cerrado.
+  → Fase 9: `0029` + Edge Function `cleanup-photos`.
+- Retención de `notifications` → Fase 9 (`0029`).
+- Recordatorio «¿Ya cortaron?» → Fase 9 (`0028`).
+- Mejorar la interfaz → Fase 9 (primera pasada: landing, tema, navegación, estados vacíos).
 - Antes de abrir a usuarios reales: SMTP propio en Supabase, revisión de los términos y la privacidad con un
   abogado (sugerencias: edad mínima, quién es el responsable de los datos y su domicilio, inscripción de la base
   en la AAIP, transferencia internacional por los servidores de Supabase y Vercel), y pasar el SQL de `sql/` a
@@ -847,6 +869,8 @@ TrabajoDetalle, Nuevo/Editar pedido, PersonaPage, describe y `send-push`.
 | `sql/0026_terminos_borrado_y_distancia.sql` | 8 | Paso 1, no rompe el front viejo: localidad por defecto, `check_in_argentina`, términos (tablas, `require_terms` apagado, `accept_terms`, `get_my_terms_status`, trigger del registro), casa obligatoria (apagada), radio, `get_available_jobs` e índice, RLS de jobs sin localidad, `upsert_my_profile` sin localidad, FK con set null y PK de `ratings` (DROP CONSTRAINT aprobado), `pending_items`, trigger de borrado, `delete_account`, RPCs con ids que pueden ser null |
 | `sql/0027_terminos_y_casa_obligatorios.sql` | 8 | **Destructivo; ejecutado el 16/10/2026 con la aprobación del dueño, después del deploy del front:** prende términos y casa obligatorios, borra la firma vieja de `upsert_my_profile`, `my_cutter_locality_id` y `jobs_available_idx` |
 | `sql/tests/fase8_seguridad.sql` | 8 | 111 casos |
+| `sql/0028_recordatorio_realizado.sql` | 9 | pg_cron, índice `jobs_locality_id_idx`, `private.remind_unfinished_jobs` y la tarea diaria |
+| `sql/0029_limpieza_avisos_y_fotos.sql` | 9 | **Destructivo, espera aprobación:** `prune_notifications`, `get_orphan_job_photos`, `queue_photo_cleanup` y sus tareas |
 | `sql/tests/cerrar_pendientes_prueba.sql` | 8 | Solo si hace falta antes de la limpieza: cancela lo pendiente de los usuarios de prueba (no borra nada) |
 | `sql/tests/limpiar_usuarios_prueba.sql` | 1 | Borra usuarios de pruebas de punta a punta |
 

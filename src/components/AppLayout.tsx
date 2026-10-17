@@ -1,5 +1,6 @@
 import { AppShell, Badge, Container, SegmentedControl, VisuallyHidden } from '@mantine/core';
-import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { useMediaQuery } from '@mantine/hooks';
+import { Link, Navigate, NavLink, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
 import { IconClipboardList, IconScissors } from '@tabler/icons-react';
 import { MODES, modeFromPath, type Mode, type NavItem } from '../app/modes';
 import { useCurrentMode } from '../app/useCurrentMode';
@@ -13,6 +14,14 @@ import classes from './AppLayout.module.css';
 const BAR_HEIGHT = 56;
 const SWITCHER_HEIGHT = 64;
 const NAV_HEIGHT = 64;
+const DESKTOP_BAR_HEIGHT = 64;
+const SIDEBAR_WIDTH = 248;
+
+/** Desde acá (62em = 992px) la navegación pasa a un menú lateral y el selector de modo, al encabezado. */
+export const DESKTOP_QUERY = '(min-width: 62em)';
+
+/** `handle` de las rutas de listas: en escritorio usan más ancho (y las tarjetas van en dos columnas). */
+export type RouteHandle = { wide?: boolean };
 
 const MODE_ICONS = { pedir: IconClipboardList, cortar: IconScissors } as const;
 
@@ -21,6 +30,8 @@ export function AppLayout() {
   const { mode, modes } = useCurrentMode();
   const config = MODES[mode];
   const showSwitcher = modes.length > 1;
+  const desktop = useMediaQuery(DESKTOP_QUERY, false, { getInitialValueInEffect: false });
+  const wide = useMatches().some((m) => (m.handle as RouteHandle | undefined)?.wide);
   // Contador de avisos sin leer: Realtime + al volver la app al frente.
   useNotificationsLive();
   const unread = useUnreadCount().data ?? 0;
@@ -36,6 +47,38 @@ export function AppLayout() {
   const pathMode = modeFromPath(pathname);
   if (pathMode && !modes.includes(pathMode)) return <Navigate to={config.home} replace />;
 
+  const modeLabel = !showSwitcher && <span className={classes.modeTag}>{config.headerLabel}</span>;
+  const brand = (
+    <Link to={config.home} className={classes.brand} aria-label="PastoControl, ir al inicio">
+      <img src="/logo.svg" alt="" className={classes.brandLogo} />
+      <span className={classes.brandName}>PastoControl</span>
+    </Link>
+  );
+
+  if (desktop) {
+    return (
+      <AppShell header={{ height: DESKTOP_BAR_HEIGHT }} navbar={{ width: SIDEBAR_WIDTH, breakpoint: 0 }} padding="xl">
+        <AppShell.Header withBorder={false}>
+          <div className={classes.headerBar} style={{ height: DESKTOP_BAR_HEIGHT, background: `var(--mantine-color-${config.color}-8)` }}>
+            {brand}
+            {showSwitcher ? <ModeSwitcher mode={mode} modes={modes} compact /> : modeLabel}
+          </div>
+        </AppShell.Header>
+
+        <AppShell.Navbar className={classes.sidebar}>
+          <SideNav items={config.nav} color={config.color} unread={unread} />
+        </AppShell.Navbar>
+
+        <AppShell.Main className={classes.main}>
+          <Container size={wide ? 'lg' : 'sm'} px={0}>
+            {showDevicePrompts && <DevicePrompts />}
+            <Outlet />
+          </Container>
+        </AppShell.Main>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell
       header={{ height: BAR_HEIGHT + (showSwitcher ? SWITCHER_HEIGHT : 0) }}
@@ -44,12 +87,9 @@ export function AppLayout() {
     >
       <AppShell.Header withBorder={false}>
         <div className={classes.headerBar} style={{ background: `var(--mantine-color-${config.color}-8)` }}>
-          <Link to={config.home} className={classes.brand} aria-label="PastoControl, ir al inicio">
-            <img src="/logo.svg" alt="" className={classes.brandLogo} />
-            <span className={classes.brandName}>PastoControl</span>
-          </Link>
+          {brand}
           {/* Con un solo rol no hay selector: el encabezado igual dice en qué modo estás. */}
-          {!showSwitcher && <span className={classes.modeTag}>{config.headerLabel}</span>}
+          {modeLabel}
         </div>
         {showSwitcher && <ModeSwitcher mode={mode} modes={modes} />}
       </AppShell.Header>
@@ -61,18 +101,18 @@ export function AppLayout() {
         </Container>
       </AppShell.Main>
 
-      <AppShell.Footer>
+      <AppShell.Footer className={classes.footer}>
         <BottomNav items={config.nav} color={config.color} unread={unread} />
       </AppShell.Footer>
     </AppShell>
   );
 }
 
-function ModeSwitcher({ mode, modes }: { mode: Mode; modes: Mode[] }) {
+function ModeSwitcher({ mode, modes, compact = false }: { mode: Mode; modes: Mode[]; compact?: boolean }) {
   const navigate = useNavigate();
 
   return (
-    <div className={classes.switcherRow} style={{ height: SWITCHER_HEIGHT }}>
+    <div className={compact ? classes.switcherInline : classes.switcherRow} style={compact ? undefined : { height: SWITCHER_HEIGHT }}>
       <SegmentedControl
         fullWidth
         aria-label="Elegí qué querés hacer"
@@ -122,6 +162,34 @@ function BottomNav({ items, color, unread }: { items: NavItem[]; color: string; 
               {item.label}
               {badge !== null && <VisuallyHidden>, {badge} sin leer</VisuallyHidden>}
             </span>
+          </NavLink>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Escritorio: la misma navegación, vertical y con el texto al lado del ícono. */
+function SideNav({ items, color, unread }: { items: NavItem[]; color: string; unread: number }) {
+  return (
+    <nav
+      className={classes.sideNav}
+      aria-label="Navegación principal"
+      style={{ ['--nav-active-color' as string]: `var(--mantine-color-${color}-8)` }}
+    >
+      {items.map((item) => {
+        const Icon = item.icon;
+        const badge = item.badgeKey === 'unread' && unread > 0 ? unread : null;
+        return (
+          <NavLink key={item.to} to={item.to} end={item.end} className={classes.sideItem}>
+            <Icon size={24} stroke={1.8} aria-hidden />
+            <span className={classes.sideLabel}>{item.label}</span>
+            {badge !== null && (
+              <Badge size="md" color="red" circle>
+                {badge > 9 ? '9+' : badge}
+                <VisuallyHidden> sin leer</VisuallyHidden>
+              </Badge>
+            )}
           </NavLink>
         );
       })}

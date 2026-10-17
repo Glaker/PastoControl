@@ -1,4 +1,4 @@
-import { IconArrowBackUp, IconBan, IconBell, IconCircleCheck, IconConfetti, IconPencil, IconUserPlus, IconUserX, type Icon } from '@tabler/icons-react';
+import { IconArrowBackUp, IconBan, IconBell, IconCircleCheck, IconClockQuestion, IconConfetti, IconPencil, IconUserPlus, IconUserX, type Icon } from '@tabler/icons-react';
 import { formatDateTime, formatPrice } from '../lib/format';
 import type { AppNotification } from './queries';
 
@@ -110,6 +110,15 @@ export function describeNotification(
         title: 'Trabajo realizado',
         body: `${actor} marcó como realizado el trabajo${en}${p.desired_at ? ` del ${formatDateTime(p.desired_at, tz)}` : ''}. Contanos si volverías a trabajar con esa persona.`,
         // Le llega a cualquiera de las dos partes: /trabajo/:id lleva a la pantalla que corresponde.
+        to: n.job_id ? `/trabajo/${n.job_id}` : null,
+      };
+    case 'recordatorio_realizado':
+      return {
+        icon: IconClockQuestion,
+        color: 'orange',
+        title: '¿Ya cortaron?',
+        body: `El trabajo${en} con ${actor}${p.desired_at ? ` era el ${formatDateTime(p.desired_at, tz)}` : ''}. Si ya se hizo, marcalo como realizado y calificá; si no, cancelalo.`,
+        // Le llega a las dos partes: /trabajo/:id lleva a la pantalla que corresponde.
         to: n.job_id ? `/trabajo/${n.job_id}` : null,
       };
     default:

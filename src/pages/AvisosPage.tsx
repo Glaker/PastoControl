@@ -1,3 +1,4 @@
+import { IconBellOff } from '@tabler/icons-react';
 import { Badge, Card, Group, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -16,6 +17,7 @@ import {
 } from '../notifications/queries';
 import { useMyProfile } from '../profile/queries';
 import classes from './AvisosPage.module.css';
+import { EmptyState } from '../components/EmptyState';
 
 export function AvisosPage() {
   const userId = useUserId();
@@ -64,9 +66,9 @@ export function AvisosPage() {
       </Title>
 
       {items.length === 0 && (
-        <Card withBorder radius="md" padding="lg">
-          <Text>Todavía no tenés avisos. Te avisamos acá cuando pase algo con tus pedidos o postulaciones.</Text>
-        </Card>
+        <EmptyState icon={IconBellOff} title="Todavía no tenés avisos">
+          <Text c="dimmed">Te avisamos acá cuando pase algo con tus pedidos o postulaciones.</Text>
+        </EmptyState>
       )}
 
       {items.map((n) => (

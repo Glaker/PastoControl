@@ -1,23 +1,26 @@
-import { Button, Card, Stack, Text, Title } from '@mantine/core';
-import { IconPlus } from '@tabler/icons-react';
+import { Button, Flex, Stack, Text, Title } from '@mantine/core';
 import { Link } from 'react-router';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobCard } from '../../jobs/JobCard';
 import { LoadFailed } from '../../jobs/JobPageParts';
 import { jobDisplayStatus, useMyJobs, type Job } from '../../jobs/queries';
+import { IconPlant2, IconPlus } from '@tabler/icons-react';
+import { EmptyState } from '../../components/EmptyState';
+import { CardGrid } from '../../components/CardGrid';
 
 export function MisPedidosPage() {
   const { data: jobs, isPending, error, refetch } = useMyJobs();
 
+  // En el celular, el botón ocupa todo el ancho debajo del título; en escritorio, va al lado.
   const header = (
-    <>
+    <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }} gap="md">
       <Title order={1} size="h2">
         Mis pedidos
       </Title>
       <Button component={Link} to="/pedir/nuevo" leftSection={<IconPlus size={20} aria-hidden />}>
         Publicar un pedido
       </Button>
-    </>
+    </Flex>
   );
 
   if (isPending) {
@@ -47,9 +50,9 @@ export function MisPedidosPage() {
       {header}
 
       {jobs.length === 0 && (
-        <Card withBorder radius="md" padding="lg">
-          <Text>Todavía no publicaste pedidos. Contá dónde, cuándo y cuánto pagás, y los cortadores de la zona se postulan.</Text>
-        </Card>
+        <EmptyState icon={IconPlant2} title="Todavía no publicaste pedidos">
+          <Text c="dimmed">Contá dónde, cuándo y cuánto pagás, y los cortadores de la zona se postulan.</Text>
+        </EmptyState>
       )}
 
       {active.length > 0 && (
@@ -62,9 +65,11 @@ export function MisPedidosPage() {
               Los vencidos ya no los ve nadie: editalos con una fecha nueva o cancelalos.
             </Text>
           )}
-          {active.map((job) => (
-            <JobCard key={job.id} job={job} to={`/pedir/pedido/${job.id}`} variant="owner" />
-          ))}
+          <CardGrid>
+            {active.map((job) => (
+              <JobCard key={job.id} job={job} to={`/pedir/pedido/${job.id}`} variant="owner" />
+            ))}
+          </CardGrid>
         </Stack>
       )}
 
@@ -73,9 +78,11 @@ export function MisPedidosPage() {
           <Title order={2} size="h3">
             Anteriores
           </Title>
-          {history.map((job) => (
-            <JobCard key={job.id} job={job} to={`/pedir/pedido/${job.id}`} variant="owner" />
-          ))}
+          <CardGrid>
+            {history.map((job) => (
+              <JobCard key={job.id} job={job} to={`/pedir/pedido/${job.id}`} variant="owner" />
+            ))}
+          </CardGrid>
         </Stack>
       )}
     </Stack>

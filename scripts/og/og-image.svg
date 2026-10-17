@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f9e44"/>
+      <stop offset="1" stop-color="#1f6b2f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g fill="#ffffff" opacity="0.08">
+    <path d="M0 630 C 60 520, 90 470, 140 420 C 120 500, 118 570, 122 630 Z"/>
+    <path d="M100 630 C 130 500, 170 430, 230 360 C 205 460, 200 560, 205 630 Z"/>
+    <path d="M980 630 C 1010 520, 1050 450, 1110 400 C 1090 480, 1084 570, 1090 630 Z"/>
+    <path d="M1070 630 C 1100 500, 1140 430, 1200 370 L 1200 630 Z"/>
+  </g>
+  <g transform="translate(96 80) scale(0.34)">
+    <rect width="512" height="512" rx="96" fill="#ffffff"/>
+    <g fill="#2b8a3e">
+      <path d="M96 400 C 120 300, 150 230, 196 170 C 176 240, 168 320, 172 400 Z"/>
+      <path d="M176 400 C 196 290, 230 200, 276 120 C 254 210, 246 310, 252 400 Z"/>
+      <path d="M256 400 C 268 310, 300 240, 352 180 C 330 250, 322 330, 328 400 Z"/>
+      <path d="M320 400 C 340 330, 370 280, 416 240 C 398 300, 394 350, 400 400 Z"/>
+    </g>
+    <rect x="80" y="396" width="352" height="28" rx="14" fill="#2b8a3e"/>
+  </g>
+  <text x="290" y="160" font-family="DejaVu Sans, Arial, sans-serif" font-size="64" font-weight="800" fill="#ffffff">PastoControl</text>
+  <text x="96" y="370" font-family="DejaVu Sans, Arial, sans-serif" font-size="72" font-weight="800" fill="#ffffff">Tu pasto cortado,</text>
+  <text x="96" y="455" font-family="DejaVu Sans, Arial, sans-serif" font-size="72" font-weight="800" fill="#b2f2bb">sin vueltas.</text>
+  <text x="96" y="540" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" fill="#ebfbee">Publicá tu terreno · elegí quién lo corta · arreglen por WhatsApp</text>
+</svg>

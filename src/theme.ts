@@ -23,7 +23,17 @@ export const theme = createTheme({
   defaultRadius: 'md',
   fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   fontSizes: { md: '1.0625rem' },
+  headings: { fontWeight: '800', sizes: { h1: { lineHeight: '1.15' }, h2: { lineHeight: '1.2' } } },
+  shadows: {
+    xs: '0 1px 2px rgb(16 40 20 / 0.06), 0 1px 1px rgb(16 40 20 / 0.04)',
+    sm: '0 1px 3px rgb(16 40 20 / 0.08), 0 4px 12px rgb(16 40 20 / 0.05)',
+    md: '0 4px 10px rgb(16 40 20 / 0.08), 0 12px 28px rgb(16 40 20 / 0.08)',
+  },
   components: {
+    // Tarjetas con un poco de relieve sobre el fondo gris.
+    Card: { defaultProps: { shadow: 'xs' } },
+    Paper: { defaultProps: { shadow: 'xs' } },
+    Badge: { styles: { root: { textTransform: 'none', letterSpacing: 0 } } },
     Button: { defaultProps: { size: 'lg' } },
     TextInput: { defaultProps: { size: 'lg' } },
     PasswordInput: { defaultProps: { size: 'lg' } },

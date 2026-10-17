@@ -240,6 +240,12 @@ function describe(kind: string, jobId: string | null, p: Payload): { title: stri
         body: `${actor} marcó como realizado el trabajo${en}${when}. Contanos si volverías a trabajar con esa persona.`,
         url: jobId ? `/trabajo/${jobId}` : '/avisos',
       };
+    case 'recordatorio_realizado':
+      return {
+        title: '¿Ya cortaron?',
+        body: `El trabajo${en} con ${actor}${p.desired_at ? ` era el ${formatDateTime(p.desired_at, tz)}` : ''}. Si ya se hizo, marcalo como realizado y calificá; si no, cancelalo.`,
+        url: jobId ? `/trabajo/${jobId}` : '/avisos',
+      };
     default:
       return { title: 'PastoControl', body: 'Tenés un aviso nuevo.', url: '/avisos' };
   }

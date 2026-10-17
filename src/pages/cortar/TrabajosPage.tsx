@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Group, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Alert, Button, Group, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   IconCurrentLocation,
@@ -6,6 +6,7 @@ import {
   IconInfoCircle,
   IconList,
   IconMap,
+  IconMapSearch,
   IconRefresh,
   IconRuler2,
   IconZoomIn,
@@ -23,6 +24,8 @@ import { JobsMapView, type MapJob } from '../../map/lazy';
 import { useCurrentPosition } from '../../map/useCurrentPosition';
 import { BaseLocationStep } from '../../profile/BaseLocationStep';
 import { myProfileKey, useMyProfile, type MyProfile } from '../../profile/queries';
+import { EmptyState } from '../../components/EmptyState';
+import { CardGrid } from '../../components/CardGrid';
 
 type Origin = 'actual' | 'casa';
 type View = 'lista' | 'mapa';
@@ -160,51 +163,55 @@ function AvailableJobs({ profile, home }: { profile: MyProfile; home: LatLng }) 
         </Text>
       </div>
 
-      <Stack gap="xs">
-        <Text fw={600}>Buscar desde</Text>
-        <SimpleGrid cols={2} spacing="xs">
-          <ToggleButton
-            active={origin === 'actual'}
-            icon={<IconCurrentLocation size={22} aria-hidden />}
-            onClick={() => chooseOrigin('actual')}
-          >
-            Mi ubicación actual
-          </ToggleButton>
-          <ToggleButton active={origin === 'casa'} icon={<IconHome size={22} aria-hidden />} onClick={() => chooseOrigin('casa')}>
-            Mi casa
-          </ToggleButton>
-        </SimpleGrid>
-        {waitingGps && <Text c="dimmed">Buscando tu ubicación…</Text>}
-        {gpsFailed && (
-          <Alert color="orange" icon={<IconInfoCircle aria-hidden />}>
-            {gps.error} Mientras tanto, te mostramos los trabajos desde tu casa.
-          </Alert>
-        )}
-      </Stack>
+      {/* En escritorio, origen y distancia lado a lado. */}
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+        <Stack gap="xs">
+          <Text fw={600}>Buscar desde</Text>
+          <SimpleGrid cols={2} spacing="xs">
+            <ToggleButton
+              active={origin === 'actual'}
+              icon={<IconCurrentLocation size={22} aria-hidden />}
+              onClick={() => chooseOrigin('actual')}
+            >
+              Mi ubicación actual
+            </ToggleButton>
+            <ToggleButton active={origin === 'casa'} icon={<IconHome size={22} aria-hidden />} onClick={() => chooseOrigin('casa')}>
+              Mi casa
+            </ToggleButton>
+          </SimpleGrid>
+          {waitingGps && <Text c="dimmed">Buscando tu ubicación…</Text>}
+          {gpsFailed && (
+            <Alert color="orange" icon={<IconInfoCircle aria-hidden />}>
+              {gps.error} Mientras tanto, te mostramos los trabajos desde tu casa.
+            </Alert>
+          )}
+        </Stack>
 
-      <Stack gap="xs">
-        <Group gap={6} wrap="nowrap">
-          <IconRuler2 size={20} aria-hidden style={{ flex: 'none' }} />
-          <Text fw={600}>Hasta qué distancia</Text>
-        </Group>
-        <SegmentedControl
-          fullWidth
-          size="md"
-          aria-label="Hasta qué distancia buscar"
-          value={String(radius)}
-          onChange={(value) => void chooseRadius(Number(value))}
-          data={RADII.map((r) => ({ value: String(r), label: `${r} km` }))}
-          styles={{ label: { minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
-        />
-        {radiusError && (
-          <Alert color="red" role="alert">
-            {radiusError}
-          </Alert>
-        )}
-      </Stack>
+        <Stack gap="xs">
+          <Group gap={6} wrap="nowrap">
+            <IconRuler2 size={20} aria-hidden style={{ flex: 'none' }} />
+            <Text fw={600}>Hasta qué distancia</Text>
+          </Group>
+          <SegmentedControl
+            fullWidth
+            size="md"
+            aria-label="Hasta qué distancia buscar"
+            value={String(radius)}
+            onChange={(value) => void chooseRadius(Number(value))}
+            data={RADII.map((r) => ({ value: String(r), label: `${r} km` }))}
+            styles={{ label: { minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
+          />
+          {radiusError && (
+            <Alert color="red" role="alert">
+              {radiusError}
+            </Alert>
+          )}
+        </Stack>
+      </SimpleGrid>
 
       <SegmentedControl
         fullWidth
+        maw={{ md: 360 }}
         aria-label="Cómo ver los trabajos"
         value={view}
         onChange={(value) => chooseView(value as View)}
@@ -219,19 +226,17 @@ function AvailableJobs({ profile, home }: { profile: MyProfile; home: LatLng }) 
       {error && <LoadFailed error={error} onRetry={() => void refetch()} />}
 
       {jobs && jobs.length === 0 && (
-        <Card withBorder radius="md" padding="lg">
-          <Stack gap="sm">
-            <Text>No hay trabajos publicados a menos de {radius} km. Volvé a mirar más tarde.</Text>
-            {nextRadius && (
-              <Button variant="default" leftSection={<IconZoomIn size={20} aria-hidden />} onClick={() => void chooseRadius(nextRadius)}>
-                Buscar hasta {nextRadius} km
-              </Button>
-            )}
-          </Stack>
-        </Card>
+        <EmptyState icon={IconMapSearch} title={`No hay trabajos a menos de ${radius} km`}>
+          <Text c="dimmed">Volvé a mirar más tarde: cuando alguien publique cerca, aparece acá.</Text>
+          {nextRadius && (
+            <Button variant="default" leftSection={<IconZoomIn size={20} aria-hidden />} onClick={() => void chooseRadius(nextRadius)}>
+              Buscar hasta {nextRadius} km
+            </Button>
+          )}
+        </EmptyState>
       )}
 
-      {jobs && jobs.length > 0 && view === 'lista' && jobs.map(card)}
+      {jobs && jobs.length > 0 && view === 'lista' && <CardGrid>{jobs.map(card)}</CardGrid>}
 
       {jobs && jobs.length > 0 && view === 'mapa' && originPoint && (
         <Stack gap="sm">

@@ -6,6 +6,9 @@
   gap: var(--mantine-spacing-sm);
   padding-inline: var(--mantine-spacing-md);
   color: var(--mantine-color-white);
+  /* El color de fondo lo pone el modo; encima, un brillo suave. */
+  background-image: linear-gradient(100deg, rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.12));
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
 }
 
 .brand {
@@ -101,15 +104,8 @@
     color: var(--nav-active-color);
   }
 
-  &[aria-current='page']::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 20%;
-    right: 20%;
-    height: 3px;
-    border-radius: 0 0 3px 3px;
-    background: var(--nav-active-color);
+  &[aria-current='page'] {
+    font-weight: 800;
   }
 
   &:focus-visible {
@@ -120,10 +116,76 @@
 
 .navIcon {
   position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 2rem;
+  border-radius: 999px;
+  transition: background-color 150ms ease;
+}
+
+/* Pastilla detrás del ícono activo. */
+.navItem[aria-current='page'] .navIcon {
+  background: color-mix(in srgb, var(--nav-active-color) 14%, transparent);
 }
 
 .navBadge {
   position: absolute;
-  top: -0.375rem;
-  right: -0.875rem;
+  top: -0.25rem;
+  right: 0.125rem;
+}
+
+.footer {
+  border-top-color: var(--mantine-color-gray-2);
+  box-shadow: 0 -2px 12px rgb(16 40 20 / 0.06);
+}
+
+/* ——— Escritorio ——— */
+.switcherInline {
+  width: 22rem;
+  flex: none;
+}
+
+.sidebar {
+  background: var(--mantine-color-white);
+  border-right-color: var(--mantine-color-gray-2);
+  padding: var(--mantine-spacing-md) var(--mantine-spacing-sm);
+}
+
+.sideNav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sideItem {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-sm);
+  min-height: 3rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: var(--mantine-radius-md);
+  color: var(--mantine-color-gray-8);
+  text-decoration: none;
+  font-weight: 600;
+  transition: background-color 120ms ease;
+
+  &:hover {
+    background: var(--mantine-color-gray-0);
+  }
+
+  &[aria-current='page'] {
+    color: var(--nav-active-color);
+    font-weight: 800;
+    background: color-mix(in srgb, var(--nav-active-color) 12%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nav-active-color);
+    outline-offset: 2px;
+  }
+}
+
+.sideLabel {
+  flex: 1;
 }

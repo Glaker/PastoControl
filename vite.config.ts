@@ -39,6 +39,8 @@ export default defineConfig({
       },
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // La imagen para compartir links no la usa la app: no se precachea.
+        globIgnores: ['og-image.png'],
       },
       devOptions: {
         enabled: false,
