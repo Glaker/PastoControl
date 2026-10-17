@@ -8,7 +8,7 @@ import { RootLayout } from './RootLayout';
 import { RootRedirect } from './RootRedirect';
 import { RouteError } from './RouteError';
 
-// Listas: en escritorio usan más ancho.
+// Listas, detalles y formularios largos: en escritorio usan más ancho (dos columnas).
 const wide: RouteHandle = { wide: true };
 
 // Las pantallas se cargan a demanda: la primera carga en el celular baja solo lo necesario.
@@ -59,16 +59,16 @@ export const router = createBrowserRouter([
                     element: <AppLayout />,
                     children: [
                       { path: 'pedir', handle: wide, lazy: () => import('../pages/pedir/MisPedidosPage').then((m) => ({ Component: m.MisPedidosPage })) },
-                      { path: 'pedir/nuevo', lazy: () => import('../pages/pedir/NuevoPedidoPage').then((m) => ({ Component: m.NuevoPedidoPage })) },
-                      { path: 'pedir/pedido/:jobId', lazy: () => import('../pages/pedir/PedidoDetallePage').then((m) => ({ Component: m.PedidoDetallePage })) },
-                      { path: 'pedir/pedido/:jobId/editar', lazy: () => import('../pages/pedir/EditarPedidoPage').then((m) => ({ Component: m.EditarPedidoPage })) },
+                      { path: 'pedir/nuevo', handle: wide, lazy: () => import('../pages/pedir/NuevoPedidoPage').then((m) => ({ Component: m.NuevoPedidoPage })) },
+                      { path: 'pedir/pedido/:jobId', handle: wide, lazy: () => import('../pages/pedir/PedidoDetallePage').then((m) => ({ Component: m.PedidoDetallePage })) },
+                      { path: 'pedir/pedido/:jobId/editar', handle: wide, lazy: () => import('../pages/pedir/EditarPedidoPage').then((m) => ({ Component: m.EditarPedidoPage })) },
                       { path: 'cortar', handle: wide, lazy: () => import('../pages/cortar/TrabajosPage').then((m) => ({ Component: m.TrabajosPage })) },
-                      { path: 'cortar/trabajo/:jobId', lazy: () => import('../pages/cortar/TrabajoDetallePage').then((m) => ({ Component: m.TrabajoDetallePage })) },
+                      { path: 'cortar/trabajo/:jobId', handle: wide, lazy: () => import('../pages/cortar/TrabajoDetallePage').then((m) => ({ Component: m.TrabajoDetallePage })) },
                       { path: 'cortar/postulaciones', handle: wide, lazy: () => import('../pages/cortar/MisPostulacionesPage').then((m) => ({ Component: m.MisPostulacionesPage })) },
                       { path: 'trabajo/:jobId', lazy: () => import('../pages/TrabajoRedirectPage').then((m) => ({ Component: m.TrabajoRedirectPage })) },
                       { path: 'persona/:personId', lazy: () => import('../pages/PersonaPage').then((m) => ({ Component: m.PersonaPage })) },
                       { path: 'avisos', lazy: () => import('../pages/AvisosPage').then((m) => ({ Component: m.AvisosPage })) },
-                      { path: 'perfil', lazy: () => import('../pages/PerfilPage').then((m) => ({ Component: m.PerfilPage })) },
+                      { path: 'perfil', handle: wide, lazy: () => import('../pages/PerfilPage').then((m) => ({ Component: m.PerfilPage })) },
                       { path: '*', lazy: () => import('../pages/NotFoundPage').then((m) => ({ Component: m.NotFoundPage })) },
                     ],
                   },

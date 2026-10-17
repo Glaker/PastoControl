@@ -1,6 +1,7 @@
 import { Button, Card, Group, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { IconBell, IconBellOff, IconDeviceMobile, IconX } from '@tabler/icons-react';
 import { useState, type ReactNode } from 'react';
+import { useIsDesktop } from '../app/useIsDesktop';
 import { readLocal, writeLocal } from '../lib/storage';
 import { useInstallState } from './installStore';
 import { IosInstallSteps } from './IosInstallSteps';
@@ -55,17 +56,21 @@ export function DevicePrompts() {
   const pushPending = push.support === 'supported' && push.ready && !push.subscribed && !push.disabledByUser && !hidePush;
   if (pushPending && push.permission === 'default') {
     return (
-      <PromptCard icon={<IconBell size={24} aria-hidden />} color="pasto" title="Activá los avisos" onClose={closePush}>
+      <PromptCard icon={<IconBell size={24} aria-hidden />} color="pasto" title="Activá los avisos" onClose={closePush} action={<EnablePushButton />}>
         <Text>Enterate cuando alguien se postula o te eligen, aunque tengas la app cerrada.</Text>
-        <EnablePushButton />
       </PromptCard>
     );
   }
   if (pushPending && push.permission === 'granted' && push.failed) {
     return (
-      <PromptCard icon={<IconBell size={24} aria-hidden />} color="orange" title="Faltan activar los avisos" onClose={closePush}>
+      <PromptCard
+        icon={<IconBell size={24} aria-hidden />}
+        color="orange"
+        title="Faltan activar los avisos"
+        onClose={closePush}
+        action={<EnablePushButton />}
+      >
         <Text>Diste el permiso, pero no pudimos terminar de activar los avisos en este dispositivo.</Text>
-        <EnablePushButton />
       </PromptCard>
     );
   }
@@ -79,9 +84,14 @@ export function DevicePrompts() {
 
   if (install.canPrompt && !install.installed && !hideInstall) {
     return (
-      <PromptCard icon={<IconDeviceMobile size={24} aria-hidden />} color="blue" title="Instalá PastoControl" onClose={closeInstall}>
+      <PromptCard
+        icon={<IconDeviceMobile size={24} aria-hidden />}
+        color="blue"
+        title="Instalá PastoControl"
+        onClose={closeInstall}
+        action={<InstallButton />}
+      >
         <Text>Tenela en tu pantalla de inicio y abrila con un toque, como cualquier app.</Text>
-        <InstallButton />
       </PromptCard>
     );
   }
@@ -94,14 +104,46 @@ function PromptCard({
   color,
   title,
   onClose,
+  action,
   children,
 }: {
   icon: ReactNode;
   color: string;
   title: string;
   onClose: () => void;
+  /** El botón principal. En escritorio, con acción, el aviso es una franja: texto a la izquierda y botones a la derecha. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
+  const desktop = useIsDesktop();
+  const close = (
+    <Button variant="subtle" color="gray" leftSection={<IconX size={18} aria-hidden />} onClick={onClose}>
+      Ahora no
+    </Button>
+  );
+
+  if (desktop && action) {
+    return (
+      <Card withBorder radius="lg" padding="md" mb="lg" style={{ borderColor: `var(--mantine-color-${color}-4)` }}>
+        <Group gap="md" wrap="nowrap">
+          <ThemeIcon size={44} radius="xl" variant="light" color={color}>
+            {icon}
+          </ThemeIcon>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Title order={2} size="h5">
+              {title}
+            </Title>
+            {children}
+          </div>
+          <Group gap="xs" wrap="nowrap" title="Lo vas a encontrar en tu perfil cuando quieras.">
+            {close}
+            {action}
+          </Group>
+        </Group>
+      </Card>
+    );
+  }
+
   return (
     <Card withBorder radius="md" padding="lg" mb="lg" style={{ borderColor: `var(--mantine-color-${color}-4)` }}>
       <Stack gap="md">
@@ -114,9 +156,8 @@ function PromptCard({
           </Title>
         </Group>
         {children}
-        <Button variant="subtle" color="gray" leftSection={<IconX size={18} aria-hidden />} onClick={onClose}>
-          Ahora no
-        </Button>
+        {action}
+        {close}
         <Text size="xs" c="dimmed" ta="center" mt={-8}>
           Lo vas a encontrar en tu perfil cuando quieras.
         </Text>

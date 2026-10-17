@@ -4,6 +4,7 @@ import { IconCheck, IconFileText, IconLogout, IconPencil, IconShieldLock, IconTr
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from '../auth/AuthProvider';
+import { DetailLayout } from '../components/DetailLayout';
 import { FullPageLoader } from '../components/FullPageLoader';
 import { formatPhone } from '../lib/phone';
 import { signOut } from '../auth/signOut';
@@ -50,92 +51,101 @@ export function PerfilPage() {
         Mi perfil
       </Title>
 
-      <Card withBorder radius="md" padding="lg">
-        <Stack align="center" gap="xs">
-          <Avatar src={avatarUrl ?? null} size={112} radius={999} color="pasto" alt="">
-            {`${profile.first_name.charAt(0)}${profile.last_initial}`}
-          </Avatar>
-          <Text fw={700} size="xl" ta="center">
-            {fullName}
-          </Text>
-          <Text c="dimmed" size="sm" ta="center">
-            Los demás te ven como «{profile.first_name} {profile.last_initial}.» hasta que acuerdan un trabajo.
-          </Text>
-          <Group gap="xs" justify="center">
-            {profile.is_client && <Badge size="lg" color="blue" variant="light">Pido cortes</Badge>}
-            {profile.is_cutter && <Badge size="lg" color="pasto" variant="light">Corto pasto</Badge>}
-          </Group>
-        </Stack>
+      <DetailLayout
+        info={
+          <>
+            <Card withBorder radius="lg" padding="lg">
+              <Stack align="center" gap="xs">
+                <Avatar src={avatarUrl ?? null} size={112} radius={999} color="pasto" alt="">
+                  {`${profile.first_name.charAt(0)}${profile.last_initial}`}
+                </Avatar>
+                <Text fw={700} size="xl" ta="center">
+                  {fullName}
+                </Text>
+                <Text c="dimmed" size="sm" ta="center">
+                  Los demás te ven como «{profile.first_name} {profile.last_initial}.» hasta que acuerdan un trabajo.
+                </Text>
+                <Group gap="xs" justify="center">
+                  {profile.is_client && <Badge size="lg" color="blue" variant="light">Pido cortes</Badge>}
+                  {profile.is_cutter && <Badge size="lg" color="pasto" variant="light">Corto pasto</Badge>}
+                </Group>
+              </Stack>
 
-        <Divider my="md" />
+              <Divider my="md" />
 
-        <Stack gap="sm">
-          <Field label="WhatsApp" value={formatPhone(profile.private.phone_e164)} />
-          <Field label="Email" value={session?.user.email ?? '—'} />
-        </Stack>
-      </Card>
+              <Stack gap="sm">
+                <Field label="WhatsApp" value={formatPhone(profile.private.phone_e164)} />
+                <Field label="Email" value={session?.user.email ?? '—'} />
+              </Stack>
+            </Card>
 
-      <Button leftSection={<IconPencil size={20} aria-hidden />} onClick={() => setEditing(true)}>
-        Editar mis datos
-      </Button>
-      <Text size="sm" c="dimmed">
-        Desde «Editar mis datos» también podés cambiar si pedís cortes, cortás pasto o las dos cosas.
-      </Text>
-      <Button
-        component={Link}
-        to={`/persona/${profile.id}`}
-        variant="default"
-        leftSection={<IconUserCircle size={20} aria-hidden />}
-      >
-        Ver mi perfil público
-      </Button>
+            <Button leftSection={<IconPencil size={20} aria-hidden />} onClick={() => setEditing(true)}>
+              Editar mis datos
+            </Button>
+            <Text size="sm" c="dimmed">
+              Desde «Editar mis datos» también podés cambiar si pedís cortes, cortás pasto o las dos cosas.
+            </Text>
+            <Button
+              component={Link}
+              to={`/persona/${profile.id}`}
+              variant="default"
+              leftSection={<IconUserCircle size={20} aria-hidden />}
+            >
+              Ver mi perfil público
+            </Button>
+          </>
+        }
+        actions={
+          <>
+            {profile.is_cutter && <BaseLocationCard profile={profile} />}
 
-      {profile.is_cutter && <BaseLocationCard profile={profile} />}
+            <DeviceSettings />
 
-      <DeviceSettings />
+            <Divider label="Cuenta" labelPosition="left" mt="md" />
+            <Button
+              variant="default"
+              leftSection={<IconLogout size={20} aria-hidden />}
+              onClick={() => void signOut()}
+            >
+              Cerrar sesión
+            </Button>
 
-      <Divider label="Cuenta" labelPosition="left" mt="md" />
-      <Button
-        variant="default"
-        leftSection={<IconLogout size={20} aria-hidden />}
-        onClick={() => void signOut()}
-      >
-        Cerrar sesión
-      </Button>
+            <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
+              <Button component={Link} to="/terminos" variant="subtle" color="gray" leftSection={<IconFileText size={20} aria-hidden />}>
+                Términos
+              </Button>
+              <Button component={Link} to="/privacidad" variant="subtle" color="gray" leftSection={<IconShieldLock size={20} aria-hidden />}>
+                Privacidad
+              </Button>
+            </SimpleGrid>
 
-      <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
-        <Button component={Link} to="/terminos" variant="subtle" color="gray" leftSection={<IconFileText size={20} aria-hidden />}>
-          Términos
-        </Button>
-        <Button component={Link} to="/privacidad" variant="subtle" color="gray" leftSection={<IconShieldLock size={20} aria-hidden />}>
-          Privacidad
-        </Button>
-      </SimpleGrid>
+            {/* Acción peligrosa: separada de lo demás, al final y en rojo. */}
+            <Card withBorder radius="md" padding="lg" mt="xl" style={{ borderColor: 'var(--mantine-color-red-4)' }}>
+              <Stack gap="sm">
+                <Title order={2} size="h4" c="red.8">
+                  Borrar mi cuenta
+                </Title>
+                <Text size="sm">
+                  Se borran tus datos y no se puede deshacer. Antes vas a tener que cancelar lo que tengas pendiente.
+                </Text>
+                <Button
+                  component={Link}
+                  to="/cuenta/borrar"
+                  variant="outline"
+                  color="red"
+                  leftSection={<IconTrash size={20} aria-hidden />}
+                >
+                  Borrar mi cuenta
+                </Button>
+              </Stack>
+            </Card>
 
-      {/* Acción peligrosa: separada de lo demás, al final y en rojo. */}
-      <Card withBorder radius="md" padding="lg" mt="xl" style={{ borderColor: 'var(--mantine-color-red-4)' }}>
-        <Stack gap="sm">
-          <Title order={2} size="h4" c="red.8">
-            Borrar mi cuenta
-          </Title>
-          <Text size="sm">
-            Se borran tus datos y no se puede deshacer. Antes vas a tener que cancelar lo que tengas pendiente.
-          </Text>
-          <Button
-            component={Link}
-            to="/cuenta/borrar"
-            variant="outline"
-            color="red"
-            leftSection={<IconTrash size={20} aria-hidden />}
-          >
-            Borrar mi cuenta
-          </Button>
-        </Stack>
-      </Card>
-
-      <Text size="xs" c="dimmed" ta="center" data-app-version={__APP_VERSION__}>
-        PastoControl · versión {__APP_VERSION__}
-      </Text>
+            <Text size="xs" c="dimmed" ta="center" data-app-version={__APP_VERSION__}>
+              PastoControl · versión {__APP_VERSION__}
+            </Text>
+          </>
+        }
+      />
     </Stack>
   );
 }

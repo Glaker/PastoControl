@@ -5,6 +5,7 @@ import { lazy, Suspense, type ComponentProps } from 'react';
 const load = () => import('./LeafletMaps');
 const LazyLocationPicker = lazy(() => load().then((m) => ({ default: m.LocationPicker })));
 const LazyJobsMap = lazy(() => load().then((m) => ({ default: m.JobsMap })));
+const LazyJobLocation = lazy(() => load().then((m) => ({ default: m.JobLocation })));
 
 function MapFallback({ height }: { height: number | string }) {
   return (
@@ -33,6 +34,14 @@ export function JobsMapView(props: ComponentProps<typeof LazyJobsMap>) {
   return (
     <Suspense fallback={<MapFallback height="min(65vh, 520px)" />}>
       <LazyJobsMap {...props} />
+    </Suspense>
+  );
+}
+
+export function JobLocationMap(props: ComponentProps<typeof LazyJobLocation>) {
+  return (
+    <Suspense fallback={<MapFallback height={240} />}>
+      <LazyJobLocation {...props} />
     </Suspense>
   );
 }

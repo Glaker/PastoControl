@@ -105,6 +105,22 @@ export function LocationPicker({ value, onChange, initialCenter, view, label }: 
   return <div ref={elRef} className="pc-map" role="application" aria-label={label} />;
 }
 
+// ——— Ubicación de un trabajo (solo lectura) ———
+
+export function JobLocation({ point, label }: { point: LatLng; label: string }) {
+  const elRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const map = createMap(elRef.current!, point, 16);
+    L.marker(point, { icon: pinIcon('pc-pin--job'), keyboard: false, interactive: false }).addTo(map);
+    return () => {
+      map.remove();
+    };
+  }, [point.lat, point.lng]);
+
+  return <div ref={elRef} className="pc-map pc-map--short" role="img" aria-label={label} />;
+}
+
 // ——— Mapa de trabajos disponibles ———
 
 export type MapJob = { id: string; point: LatLng; priceLabel: string };

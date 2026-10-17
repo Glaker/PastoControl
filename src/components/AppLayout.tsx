@@ -1,12 +1,13 @@
-import { AppShell, Badge, Container, SegmentedControl, VisuallyHidden } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { AppShell, Avatar, Badge, Button, Container, SegmentedControl, Text, VisuallyHidden } from '@mantine/core';
 import { Link, Navigate, NavLink, Outlet, useLocation, useMatches, useNavigate } from 'react-router';
-import { IconClipboardList, IconScissors } from '@tabler/icons-react';
+import { IconClipboardList, IconPlus, IconScissors } from '@tabler/icons-react';
 import { MODES, modeFromPath, type Mode, type NavItem } from '../app/modes';
 import { useCurrentMode } from '../app/useCurrentMode';
+import { useIsDesktop } from '../app/useIsDesktop';
 import { useEffect } from 'react';
 import { useUserId } from '../auth/AuthProvider';
 import { useNotificationsLive, useUnreadCount } from '../notifications/queries';
+import { useAvatarUrl, useMyProfile } from '../profile/queries';
 import { DevicePrompts } from '../push/DevicePrompts';
 import { startPushSync } from '../push/pushStore';
 import classes from './AppLayout.module.css';
@@ -16,9 +17,6 @@ const SWITCHER_HEIGHT = 64;
 const NAV_HEIGHT = 64;
 const DESKTOP_BAR_HEIGHT = 64;
 const SIDEBAR_WIDTH = 248;
-
-/** Desde acá (62em = 992px) la navegación pasa a un menú lateral y el selector de modo, al encabezado. */
-export const DESKTOP_QUERY = '(min-width: 62em)';
 
 /** `handle` de las rutas de listas: en escritorio usan más ancho (y las tarjetas van en dos columnas). */
 export type RouteHandle = { wide?: boolean };
@@ -30,7 +28,7 @@ export function AppLayout() {
   const { mode, modes } = useCurrentMode();
   const config = MODES[mode];
   const showSwitcher = modes.length > 1;
-  const desktop = useMediaQuery(DESKTOP_QUERY, false, { getInitialValueInEffect: false });
+  const desktop = useIsDesktop();
   const wide = useMatches().some((m) => (m.handle as RouteHandle | undefined)?.wide);
   // Contador de avisos sin leer: Realtime + al volver la app al frente.
   useNotificationsLive();
@@ -66,11 +64,13 @@ export function AppLayout() {
         </AppShell.Header>
 
         <AppShell.Navbar className={classes.sidebar}>
-          <SideNav items={config.nav} color={config.color} unread={unread} />
+          {mode === 'pedir' && <SidebarAction />}
+          <SideNav items={config.nav.filter((item) => item.to !== '/pedir/nuevo')} color={config.color} unread={unread} />
+          <SidebarUser />
         </AppShell.Navbar>
 
         <AppShell.Main className={classes.main}>
-          <Container size={wide ? 'lg' : 'sm'} px={0}>
+          <Container size={wide ? 'lg' : 'md'} px={0}>
             {showDevicePrompts && <DevicePrompts />}
             <Outlet />
           </Container>
@@ -194,5 +194,36 @@ function SideNav({ items, color, unread }: { items: NavItem[]; color: string; un
         );
       })}
     </nav>
+  );
+}
+
+/** Arriba del menú lateral, «Publicar un pedido» como botón principal (reemplaza al ítem del menú). */
+function SidebarAction() {
+  return (
+    <Button component={Link} to="/pedir/nuevo" color="blue" size="md" fullWidth mb="md" leftSection={<IconPlus size={20} aria-hidden />}>
+      Nuevo pedido
+    </Button>
+  );
+}
+
+/** Abajo del menú lateral: quién tiene la sesión abierta (lleva al perfil). */
+function SidebarUser() {
+  const { data: profile } = useMyProfile();
+  const { data: avatarUrl } = useAvatarUrl(profile?.avatar_path);
+  if (!profile) return null;
+  return (
+    <Link to="/perfil" className={classes.sideUser}>
+      <Avatar src={avatarUrl ?? null} size={40} radius={999} color="pasto" alt="">
+        {`${profile.first_name.charAt(0)}${profile.last_initial}`}
+      </Avatar>
+      <div style={{ minWidth: 0 }}>
+        <Text fw={700} size="sm" truncate>
+          {profile.first_name} {profile.private.last_name}
+        </Text>
+        <Text size="xs" c="dimmed">
+          Ver mi perfil
+        </Text>
+      </div>
+    </Link>
   );
 }

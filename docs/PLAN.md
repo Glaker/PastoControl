@@ -790,10 +790,18 @@ TrabajoDetalle, Nuevo/Editar pedido, PersonaPage, describe y `send-push`.
   ítem activo, tarjetas de pedidos con hover, layout de ingreso con franja verde y tarjeta, `EmptyState` en
   las listas vacías. Verificado a 360 px sin scroll horizontal (landing e ingreso; las pantallas con sesión
   no se miraron en el navegador).
-- [x] Escritorio (desde 62em = 992 px, `DESKTOP_QUERY` en `AppLayout`): menú lateral en vez de la barra de abajo,
-  selector de modo en el encabezado, listas (`handle: { wide: true }` en el router) a 1140 px con las tarjetas
-  en dos columnas (`CardGrid`), el resto a 720 px. En Trabajos, origen y distancia lado a lado. En el celular no
-  cambia nada. Sin probar con sesión en el navegador (solo typecheck y build).
+- [x] Escritorio (desde 62em = 992 px, `useIsDesktop` / `DESKTOP_QUERY` en `src/app/useIsDesktop.ts`):
+  - Menú lateral en vez de la barra de abajo: en modo pedir, «Nuevo pedido» como botón principal arriba (reemplaza
+    al ítem «Publicar»); abajo, tarjeta con la foto y el nombre que lleva al perfil. Selector de modo en el encabezado.
+  - Ancho: rutas con `handle: { wide: true }` (listas, detalles, formulario de pedido, perfil) a 1140 px; el resto a 960.
+  - Listas con las tarjetas en dos columnas (`CardGrid`). Mis pedidos con una fila de resumen (publicados,
+    postulaciones por revisar, asignados, realizados).
+  - Detalle del pedido y del trabajo, y perfil, en dos columnas (`DetailLayout`): datos a la izquierda (con un mapa
+    chico del pin, `JobLocationCard`, solo escritorio) y acciones a la derecha.
+  - Formulario de pedido en dos tarjetas: «Dónde» (mapa y dirección) y «Cuándo y cuánto»; botones en fila a la derecha.
+  - Trabajos: origen y distancia lado a lado. Carteles de avisos e instalación como franja (texto y botones en fila).
+  - En el celular no cambia nada. Revisado con sesión en el navegador (pedir, detalle, nuevo pedido, perfil,
+    avisos, postulaciones; la lista de trabajos no, porque la cuenta de prueba no tiene casa cargada).
 - [x] Recordatorio «¿Ya cortaron?» (`0028`): pg_cron diario a las 10:00 (AR), `private.remind_unfinished_jobs`,
   aviso `recordatorio_realizado` a las dos partes desde el día siguiente al acordado y hasta 7 días después,
   uno por trabajo (dedupe_key). Texto en `describe.tsx` y `send-push` (deployado, v9).

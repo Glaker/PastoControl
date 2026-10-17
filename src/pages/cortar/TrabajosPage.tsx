@@ -1,5 +1,4 @@
 import { Alert, Button, Group, SegmentedControl, SimpleGrid, Stack, Text, Title } from '@mantine/core';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   IconCurrentLocation,
   IconHome,
@@ -11,7 +10,10 @@ import {
   IconRuler2,
   IconZoomIn,
 } from '@tabler/icons-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CardGrid } from '../../components/CardGrid';
+import { EmptyState } from '../../components/EmptyState';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobCard } from '../../jobs/JobCard';
 import { LoadFailed } from '../../jobs/JobPageParts';
@@ -24,8 +26,6 @@ import { JobsMapView, type MapJob } from '../../map/lazy';
 import { useCurrentPosition } from '../../map/useCurrentPosition';
 import { BaseLocationStep } from '../../profile/BaseLocationStep';
 import { myProfileKey, useMyProfile, type MyProfile } from '../../profile/queries';
-import { EmptyState } from '../../components/EmptyState';
-import { CardGrid } from '../../components/CardGrid';
 
 type Origin = 'actual' | 'casa';
 type View = 'lista' | 'mapa';

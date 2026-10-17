@@ -4,9 +4,11 @@ import { Link, useParams } from 'react-router';
 import { ApplicationPanel } from '../../applications/ApplicationPanel';
 import { useMyApplicationForJob } from '../../applications/queries';
 import { useUserId } from '../../auth/AuthProvider';
+import { DetailLayout } from '../../components/DetailLayout';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { ClientLine } from '../../jobs/JobCard';
 import { JobFacts } from '../../jobs/JobFacts';
+import { JobLocationCard } from '../../jobs/JobLocationCard';
 import { BackLink, JobUnavailable, LoadFailed } from '../../jobs/JobPageParts';
 import { JobPhotos } from '../../jobs/JobPhotos';
 import { jobAddress, useJob } from '../../jobs/queries';
@@ -84,43 +86,53 @@ export function TrabajoDetallePage() {
         </Alert>
       )}
 
-      <Card withBorder radius="md" padding="lg">
-        <Stack gap="md">
-          <ClientLine client={job.client} size={48} />
-          {!showsContact && job.client && (
-            <Button
-              component={Link}
-              to={`/persona/${job.client.id}`}
-              variant="default"
-              leftSection={<IconUserCircle size={20} aria-hidden />}
-            >
-              Ver el perfil de {job.client.first_name}
-            </Button>
-          )}
-          <JobFacts
-            job={job}
-            showAgreed={application.data?.status === 'aceptada'}
-            showDirections={job.status === 'publicado' || application.data?.status === 'aceptada'}
-          />
-        </Stack>
-      </Card>
+      <DetailLayout
+        info={
+          <>
+            <Card withBorder radius="lg" padding="lg">
+              <Stack gap="md">
+                <ClientLine client={job.client} size={48} />
+                {!showsContact && job.client && (
+                  <Button
+                    component={Link}
+                    to={`/persona/${job.client.id}`}
+                    variant="default"
+                    leftSection={<IconUserCircle size={20} aria-hidden />}
+                  >
+                    Ver el perfil de {job.client.first_name}
+                  </Button>
+                )}
+                <JobFacts
+                  job={job}
+                  showAgreed={application.data?.status === 'aceptada'}
+                  showDirections={job.status === 'publicado' || application.data?.status === 'aceptada'}
+                />
+              </Stack>
+            </Card>
+            <JobLocationCard job={job} />
 
-      {job.photo_paths.length > 0 && (
-        <Stack gap="xs">
-          <Title order={2} size="h4">
-            Fotos del terreno
-          </Title>
-          <JobPhotos paths={job.photo_paths} />
-        </Stack>
-      )}
+            {job.photo_paths.length > 0 && (
+              <Stack gap="xs">
+                <Title order={2} size="h4">
+                  Fotos del terreno
+                </Title>
+                <JobPhotos paths={job.photo_paths} />
+              </Stack>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {!showsContact && job.client && (
+              <Alert color="blue" icon={<IconLock aria-hidden />}>
+                El nombre completo y el WhatsApp del cliente se comparten cuando acepta tu postulación.
+              </Alert>
+            )}
 
-      {!showsContact && job.client && (
-        <Alert color="blue" icon={<IconLock aria-hidden />}>
-          El nombre completo y el WhatsApp del cliente se comparten cuando acepta tu postulación.
-        </Alert>
-      )}
-
-      <ApplicationPanel job={job} application={application.data ?? null} />
+            <ApplicationPanel job={job} application={application.data ?? null} />
+          </>
+        }
+      />
     </Stack>
   );
 }

@@ -5,8 +5,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useUserId } from '../../auth/AuthProvider';
+import { DetailLayout } from '../../components/DetailLayout';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobFacts } from '../../jobs/JobFacts';
+import { JobLocationCard } from '../../jobs/JobLocationCard';
 import { BackLink, JobUnavailable, LoadFailed } from '../../jobs/JobPageParts';
 import { JobPhotos } from '../../jobs/JobPhotos';
 import { JobStatusBadge } from '../../jobs/JobStatusBadge';
@@ -113,71 +115,76 @@ export function PedidoDetallePage() {
         </Alert>
       )}
 
-      <Card withBorder radius="md" padding="lg">
-        <JobFacts job={job} />
-      </Card>
+      <DetailLayout
+        info={
+          <>
+            <Card withBorder radius="lg" padding="lg">
+              <JobFacts job={job} />
+            </Card>
+            <JobLocationCard job={job} />
+            {job.photo_paths.length > 0 && (
+              <Stack gap="xs">
+                <Title order={2} size="h4">
+                  Fotos
+                </Title>
+                <JobPhotos paths={job.photo_paths} />
+              </Stack>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {isPublished && <ApplicantsList job={job} />}
 
-      {job.photo_paths.length > 0 && (
-        <Stack gap="xs">
-          <Title order={2} size="h4">
-            Fotos
-          </Title>
-          <JobPhotos paths={job.photo_paths} />
-        </Stack>
-      )}
+            {(job.status === 'asignado' || job.status === 'realizado') && <AssignedPanel job={job} viewer="cliente" />}
 
-      {isPublished && <ApplicantsList job={job} />}
+            {(job.status === 'cancelado' || job.status === 'realizado') && (
+              <Button component={Link} to={`/pedir/nuevo?desde=${job.id}`} leftSection={<IconRepeat size={20} aria-hidden />}>
+                Volver a publicar
+              </Button>
+            )}
 
-      {(job.status === 'asignado' || job.status === 'realizado') && <AssignedPanel job={job} viewer="cliente" />}
+            {isPublished && pending > 0 && (
+              <Text size="sm" c="dimmed">
+                Como ya hay postulaciones, el pedido no se puede editar. Si necesitás cambiarlo, cancelalo y
+                publicalo de nuevo.
+              </Text>
+            )}
 
-      {(job.status === 'cancelado' || job.status === 'realizado') && (
-        <Button
-          component={Link}
-          to={`/pedir/nuevo?desde=${job.id}`}
-          leftSection={<IconRepeat size={20} aria-hidden />}
-        >
-          Volver a publicar
-        </Button>
-      )}
+            {editable && (
+              <Button
+                component={Link}
+                to={`/pedir/pedido/${job.id}/editar`}
+                variant="default"
+                leftSection={<IconPencil size={20} aria-hidden />}
+              >
+                Editar pedido
+              </Button>
+            )}
 
-      {isPublished && pending > 0 && (
-        <Text size="sm" c="dimmed">
-          Como ya hay postulaciones, el pedido no se puede editar. Si necesitás cambiarlo, cancelalo y
-          publicalo de nuevo.
-        </Text>
-      )}
+            {actionError && (
+              <Alert color="red" title="No se pudo" role="alert">
+                {actionError}
+              </Alert>
+            )}
 
-      {editable && (
-        <Button
-          component={Link}
-          to={`/pedir/pedido/${job.id}/editar`}
-          variant="default"
-          leftSection={<IconPencil size={20} aria-hidden />}
-        >
-          Editar pedido
-        </Button>
-      )}
-
-      {actionError && (
-        <Alert color="red" title="No se pudo" role="alert">
-          {actionError}
-        </Alert>
-      )}
-
-      {isPublished && (
-        <>
-          <Divider mt="xl" label="Acciones importantes" labelPosition="left" />
-          <Button
-            variant="outline"
-            color="red"
-            loading={cancelling}
-            leftSection={<IconBan size={20} aria-hidden />}
-            onClick={() => void onCancel()}
-          >
-            Cancelar pedido
-          </Button>
-        </>
-      )}
+            {isPublished && (
+              <>
+                <Divider mt="xl" label="Acciones importantes" labelPosition="left" />
+                <Button
+                  variant="outline"
+                  color="red"
+                  loading={cancelling}
+                  leftSection={<IconBan size={20} aria-hidden />}
+                  onClick={() => void onCancel()}
+                >
+                  Cancelar pedido
+                </Button>
+              </>
+            )}
+          </>
+        }
+      />
     </Stack>
   );
 }

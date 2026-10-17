@@ -1,9 +1,10 @@
-import { IconBellOff } from '@tabler/icons-react';
 import { Badge, Card, Group, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import { IconBellOff } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useUserId } from '../auth/AuthProvider';
+import { EmptyState } from '../components/EmptyState';
 import { FullPageLoader } from '../components/FullPageLoader';
 import { LoadFailed } from '../jobs/JobPageParts';
 import { formatDateTime } from '../lib/format';
@@ -17,7 +18,6 @@ import {
 } from '../notifications/queries';
 import { useMyProfile } from '../profile/queries';
 import classes from './AvisosPage.module.css';
-import { EmptyState } from '../components/EmptyState';
 
 export function AvisosPage() {
   const userId = useUserId();

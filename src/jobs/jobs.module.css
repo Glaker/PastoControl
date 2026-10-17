@@ -84,3 +84,38 @@
   outline: 3px solid var(--mantine-color-pasto-8);
   outline-offset: 2px;
 }
+
+/* Formulario de pedido: en escritorio, ubicación a la izquierda y condiciones a la derecha. */
+.formGrid {
+  display: grid;
+  gap: var(--mantine-spacing-lg);
+  align-items: start;
+
+  @media (min-width: 62em) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--mantine-spacing-xl);
+  }
+}
+
+/* En escritorio, cada columna es una tarjeta blanca sobre el fondo gris. */
+.formSection {
+  @media (min-width: 62em) {
+    background: var(--mantine-color-white);
+    border: 1px solid var(--mantine-color-gray-3);
+    border-radius: var(--mantine-radius-lg);
+    padding: var(--mantine-spacing-lg);
+    box-shadow: var(--mantine-shadow-xs);
+  }
+}
+
+/* Celular: uno debajo del otro, ancho completo. Escritorio: en fila, a la derecha. */
+.formButtons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mantine-spacing-sm);
+
+  @media (min-width: 62em) {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+  }
+}

@@ -1,4 +1,4 @@
-import { Alert, Button, Group, NumberInput, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { Alert, Button, Group, NumberInput, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { IconAlertTriangle, IconArrowLeft } from '@tabler/icons-react';
 import { useRef, useState, type ReactNode } from 'react';
@@ -7,6 +7,7 @@ import dayjs from '../lib/dayjs';
 import { friendlyError } from '../lib/errors';
 import { isInArgentina, OUTSIDE_ARGENTINA, type LatLng } from '../lib/geo';
 import { LocationField } from '../map/LocationField';
+import classes from './jobs.module.css';
 import { PhotoPicker } from './PhotoPicker';
 import type { JobInput, PhotoItem } from './saveJob';
 import { DayTimeFields, MAX_PRICE, MIN_PRICE, splitInstant, toInstant, validatePrice, validateWhen } from './schedule';
@@ -141,94 +142,107 @@ export function JobForm({ timeZone, defaultCenter, initial, copyPhotos, submitLa
   return (
     <form ref={formRef} onSubmit={handleSubmit} noValidate>
       <Stack gap="lg">
-        <LocationField
-          label="Dónde hay que cortar"
-          description="Marcá el terreno en el mapa: así los cortadores ven qué tan cerca les queda y llegan sin perderse."
-          required
-          defaultCenter={defaultCenter}
-          value={form.values.location}
-          onChange={(value) => {
-            form.setFieldValue('location', value);
-            form.clearFieldError('location');
-          }}
-          error={form.errors.location as string | undefined}
-        />
+        {/* En escritorio, dos columnas: dónde (mapa y dirección) y las condiciones del pedido. */}
+        <div className={classes.formGrid}>
+          <Stack gap="lg" className={classes.formSection}>
+            <Title order={2} size="h4" visibleFrom="md">
+              Dónde
+            </Title>
+            <LocationField
+              label="Dónde hay que cortar"
+              description="Marcá el terreno en el mapa: así los cortadores ven qué tan cerca les queda y llegan sin perderse."
+              required
+              defaultCenter={defaultCenter}
+              value={form.values.location}
+              onChange={(value) => {
+                form.setFieldValue('location', value);
+                form.clearFieldError('location');
+              }}
+              error={form.errors.location as string | undefined}
+            />
 
-        <Group gap="sm" align="flex-start" wrap="nowrap">
-          <TextInput
-            label="Calle"
-            autoComplete="address-line1"
-            withAsterisk
-            maxLength={120}
-            style={{ flex: 1, minWidth: 0 }}
-            {...form.getInputProps('street')}
-          />
-          <TextInput
-            label="Número"
-            withAsterisk
-            maxLength={10}
-            w={112}
-            style={{ flex: 'none' }}
-            {...form.getInputProps('number')}
-          />
-        </Group>
-        <TextInput
-          label="Entre calles (opcional)"
-          description="Ej.: Mitre y Belgrano."
-          maxLength={120}
-          {...form.getInputProps('between')}
-        />
-        <NumberInput
-          label="Cuánto pagás"
-          description="En pesos. Los cortadores pueden aceptarlo o proponerte otro precio."
-          withAsterisk
-          prefix="$ "
-          thousandSeparator="."
-          decimalSeparator=","
-          allowDecimal={false}
-          allowNegative={false}
-          hideControls
-          inputMode="numeric"
-          min={MIN_PRICE}
-          max={MAX_PRICE}
-          {...form.getInputProps('price')}
-        />
+            <Group gap="sm" align="flex-start" wrap="nowrap">
+              <TextInput
+                label="Calle"
+                autoComplete="address-line1"
+                withAsterisk
+                maxLength={120}
+                style={{ flex: 1, minWidth: 0 }}
+                {...form.getInputProps('street')}
+              />
+              <TextInput
+                label="Número"
+                withAsterisk
+                maxLength={10}
+                w={112}
+                style={{ flex: 'none' }}
+                {...form.getInputProps('number')}
+              />
+            </Group>
+            <TextInput
+              label="Entre calles (opcional)"
+              description="Ej.: Mitre y Belgrano."
+              maxLength={120}
+              {...form.getInputProps('between')}
+            />
+          </Stack>
+          <Stack gap="lg" className={classes.formSection}>
+            <Title order={2} size="h4" visibleFrom="md">
+              Cuándo y cuánto
+            </Title>
+            <NumberInput
+              label="Cuánto pagás"
+              description="En pesos. Los cortadores pueden aceptarlo o proponerte otro precio."
+              withAsterisk
+              prefix="$ "
+              thousandSeparator="."
+              decimalSeparator=","
+              allowDecimal={false}
+              allowNegative={false}
+              hideControls
+              inputMode="numeric"
+              min={MIN_PRICE}
+              max={MAX_PRICE}
+              {...form.getInputProps('price')}
+            />
 
-        <DayTimeFields
-          timeZone={timeZone}
-          date={form.values.date}
-          time={form.values.time}
-          dateError={form.errors.date}
-          timeError={form.errors.time}
-          onDateChange={(value) => {
-            form.setFieldValue('date', value);
-            if (form.values.time) form.validateField('time');
-          }}
-          onTimeChange={(value) => form.setFieldValue('time', value)}
-        />
-        {initial?.desiredAt && !initialStillValid && (
-          <Text size="sm" c="orange.9">
-            La fecha anterior ya pasó: elegí una nueva.
-          </Text>
-        )}
+            <DayTimeFields
+              timeZone={timeZone}
+              date={form.values.date}
+              time={form.values.time}
+              dateError={form.errors.date}
+              timeError={form.errors.time}
+              onDateChange={(value) => {
+                form.setFieldValue('date', value);
+                if (form.values.time) form.validateField('time');
+              }}
+              onTimeChange={(value) => form.setFieldValue('time', value)}
+            />
+            {initial?.desiredAt && !initialStillValid && (
+              <Text size="sm" c="orange.9">
+                La fecha anterior ya pasó: elegí una nueva.
+              </Text>
+            )}
 
-        <Textarea
-          label="Nota (opcional)"
-          description="Tamaño aproximado, si hay que juntar el pasto, si hay perro, etc."
-          autosize
-          minRows={3}
-          maxLength={500}
-          {...form.getInputProps('notes')}
-        />
+            <Textarea
+              label="Nota (opcional)"
+              description="Tamaño aproximado, si hay que juntar el pasto, si hay perro, etc."
+              autosize
+              minRows={3}
+              maxLength={500}
+              {...form.getInputProps('notes')}
+            />
 
-        <PhotoPicker photos={photos} onChange={setPhotos} disabled={saving} />
+            <PhotoPicker photos={photos} onChange={setPhotos} disabled={saving} />
 
-        <TextInput
-          label="Zona o barrio (opcional)"
-          description="Si ayuda a ubicarse. Ej.: Barrio Centro, cerca de la plaza."
-          maxLength={80}
-          {...form.getInputProps('zone')}
-        />
+            <TextInput
+              label="Zona o barrio (opcional)"
+              description="Si ayuda a ubicarse. Ej.: Barrio Centro, cerca de la plaza."
+              maxLength={80}
+              {...form.getInputProps('zone')}
+            />
+          </Stack>
+        </div>
 
         {saveError && (
           <Alert color="red" icon={<IconAlertTriangle aria-hidden />} title="No se guardó" role="alert">
@@ -236,14 +250,14 @@ export function JobForm({ timeZone, defaultCenter, initial, copyPhotos, submitLa
           </Alert>
         )}
 
-        <Stack gap="sm">
+        <div className={classes.formButtons}>
           <Button type="submit" loading={saving} leftSection={submitIcon}>
             {submitLabel}
           </Button>
           <Button variant="default" onClick={onCancel} disabled={saving} leftSection={<IconArrowLeft size={20} aria-hidden />}>
             Volver sin guardar
           </Button>
-        </Stack>
+        </div>
       </Stack>
     </form>
   );

@@ -3,13 +3,13 @@ import { IconChevronRight, IconHome, IconListSearch, IconSend } from '@tabler/ic
 import { Link } from 'react-router';
 import { ApplicationStatusBadge, ProposalSummary } from '../../applications/ApplicationParts';
 import { useMyApplications, type MyApplication } from '../../applications/queries';
+import { CardGrid } from '../../components/CardGrid';
+import { EmptyState } from '../../components/EmptyState';
 import { FullPageLoader } from '../../components/FullPageLoader';
 import { JobStatusBadge } from '../../jobs/JobStatusBadge';
 import { LoadFailed } from '../../jobs/JobPageParts';
 import { jobAddress, jobDisplayStatus } from '../../jobs/queries';
 import classes from '../../jobs/jobs.module.css';
-import { EmptyState } from '../../components/EmptyState';
-import { CardGrid } from '../../components/CardGrid';
 
 export function MisPostulacionesPage() {
   const { data: applications, isPending, error, refetch } = useMyApplications();
@@ -30,14 +30,12 @@ export function MisPostulacionesPage() {
       </Title>
 
       {applications.length === 0 && (
-        <>
-          <EmptyState icon={IconSend} title="Todavía no te postulaste a ningún trabajo">
-            <Text c="dimmed">Mirá los trabajos cerca tuyo y postulate a los que te sirvan.</Text>
-          </EmptyState>
-          <Button component={Link} to="/cortar" leftSection={<IconListSearch size={20} aria-hidden />}>
+        <EmptyState icon={IconSend} title="Todavía no te postulaste a ningún trabajo">
+          <Text c="dimmed">Mirá los trabajos cerca tuyo y postulate a los que te sirvan.</Text>
+          <Button component={Link} to="/cortar" mt="xs" leftSection={<IconListSearch size={20} aria-hidden />}>
             Ver trabajos disponibles
           </Button>
-        </>
+        </EmptyState>
       )}
 
       {active.length > 0 && (
