@@ -266,7 +266,7 @@ function HeroMock() {
           </Group>
           <Group gap={6} wrap="nowrap">
             <IconHome size={18} />
-            <Text size="sm">Belgrano 450</Text>
+            <Text size="sm">Calle 9</Text>
           </Group>
           <Group gap={6} wrap="nowrap" c="pasto.8">
             <IconRoute size={18} />
