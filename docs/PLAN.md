@@ -17,7 +17,7 @@ Se actualiza al cerrar cada fase.
 | 6 | Web Push: avisos al celular, «Activar avisos», instalar la app (Android e iPhone) | 🟡 implementada, esperando revisión y prueba en el celular |
 | 7 | Dirección visible, ubicación en el mapa y trabajos cercanos | 🟡 implementada, deployada y verificada; esperando revisión |
 | 8 | Términos y privacidad, borrar la cuenta, cualquier ciudad (radio por distancia) | 🟡 implementada, deployada (0026, front y 0027) y verificada; esperando revisión |
-| 9 | Landing pública, Open Graph, pulido de la interfaz, recordatorio «¿Ya cortaron?», limpieza programada | 🟡 implementada; 0028 y send-push deployados; 0029 y cleanup-photos esperan aprobación; front sin deployar |
+| 9 | Landing pública, Open Graph, pulido de la interfaz, recordatorio «¿Ya cortaron?», limpieza programada | 🟡 implementada; 0028, 0029, send-push y cleanup-photos deployados; esperando revisión |
 
 Deploy: https://pastocontrol.vercel.app (Vercel). El ciclo completo se probó en celular y PC.
 
@@ -797,9 +797,10 @@ TrabajoDetalle, Nuevo/Editar pedido, PersonaPage, describe y `send-push`.
 - [x] Recordatorio «¿Ya cortaron?» (`0028`): pg_cron diario a las 10:00 (AR), `private.remind_unfinished_jobs`,
   aviso `recordatorio_realizado` a las dos partes desde el día siguiente al acordado y hasta 7 días después,
   uno por trabajo (dedupe_key). Texto en `describe.tsx` y `send-push` (deployado, v9).
-- [ ] Limpieza (`0029`, destructivo, espera aprobación): `private.prune_notifications` (leídos > 90 días,
+- [x] Limpieza (`0029`, destructivo; ejecutado el 16/10/2026 con la aprobación del dueño): `private.prune_notifications` (leídos > 90 días,
   todos > 365) y fotos huérfanas (`get_orphan_job_photos`, solo service_role → Edge Function `cleanup-photos`,
-  verify_jwt false, mismo secreto que send-push). Deployar `cleanup-photos` antes de ejecutar `0029`.
+  verify_jwt false, mismo secreto que send-push, v1). Tareas a las 4:30 y 4:45 (AR). Probado: la llamada desde
+  la base devolvió 200 `{found: 0, removed: 0}`.
 - Advisors (16/10/2026): solo lo esperado (RPCs SECURITY DEFINER para authenticated, tablas sin políticas a
   propósito). Pendiente del dueño: «Leaked password protection» en Auth (panel de Supabase).
 
@@ -870,7 +871,7 @@ TrabajoDetalle, Nuevo/Editar pedido, PersonaPage, describe y `send-push`.
 | `sql/0027_terminos_y_casa_obligatorios.sql` | 8 | **Destructivo; ejecutado el 16/10/2026 con la aprobación del dueño, después del deploy del front:** prende términos y casa obligatorios, borra la firma vieja de `upsert_my_profile`, `my_cutter_locality_id` y `jobs_available_idx` |
 | `sql/tests/fase8_seguridad.sql` | 8 | 111 casos |
 | `sql/0028_recordatorio_realizado.sql` | 9 | pg_cron, índice `jobs_locality_id_idx`, `private.remind_unfinished_jobs` y la tarea diaria |
-| `sql/0029_limpieza_avisos_y_fotos.sql` | 9 | **Destructivo, espera aprobación:** `prune_notifications`, `get_orphan_job_photos`, `queue_photo_cleanup` y sus tareas |
+| `sql/0029_limpieza_avisos_y_fotos.sql` | 9 | **Destructivo; ejecutado el 16/10/2026 con la aprobación del dueño:** `prune_notifications`, `get_orphan_job_photos`, `queue_photo_cleanup` y sus tareas |
 | `sql/tests/cerrar_pendientes_prueba.sql` | 8 | Solo si hace falta antes de la limpieza: cancela lo pendiente de los usuarios de prueba (no borra nada) |
 | `sql/tests/limpiar_usuarios_prueba.sql` | 1 | Borra usuarios de pruebas de punta a punta |
 
