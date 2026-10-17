@@ -806,6 +806,8 @@ TrabajoDetalle, Nuevo/Editar pedido, PersonaPage, describe y `send-push`.
   120; con selector se ve solo el logo). Selector propio (pastilla con dos links y fondo blanco que se desliza a la activa; reemplaza al SegmentedControl, que se salía de la barra en escritorio).
   Carteles de avisos e instalación compactos (título y «Ahora no» en una fila, botón a todo el ancho). Resumen
   de Mis pedidos en 2×2. Verificado a 375 px con sesión, sin scroll horizontal.
+- [x] `public/robots.txt` (indexa solo la landing y las páginas legales) y `public/sitemap.xml`.
+- [x] `database.types.ts` regenerado (suma `get_orphan_job_photos`).
 - [x] Recordatorio «¿Ya cortaron?» (`0028`): pg_cron diario a las 10:00 (AR), `private.remind_unfinished_jobs`,
   aviso `recordatorio_realizado` a las dos partes desde el día siguiente al acordado y hasta 7 días después,
   uno por trabajo (dedupe_key). Texto en `describe.tsx` y `send-push` (deployado, v9).

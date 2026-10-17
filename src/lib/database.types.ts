@@ -658,6 +658,7 @@ export type Database = {
           current_version: number
         }[]
       }
+      get_orphan_job_photos: { Args: { p_limit?: number }; Returns: string[] }
       get_profile_stats: {
         Args: { p_user_id: string }
         Returns: {

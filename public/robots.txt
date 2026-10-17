@@ -1,0 +1,9 @@
+# Se indexan la landing y las páginas legales; las pantallas de la app requieren sesión.
+User-agent: *
+Allow: /$
+Allow: /terminos
+Allow: /privacidad
+Allow: /borrar-cuenta
+Disallow: /
+
+Sitemap: https://pastocontrol.vercel.app/sitemap.xml
