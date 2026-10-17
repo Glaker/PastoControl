@@ -44,22 +44,37 @@
   white-space: nowrap;
 }
 
-.switcherRow {
-  padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
-  border-bottom: 1px solid var(--mantine-color-gray-3);
-  background: var(--mantine-color-white);
+.switcherMobile {
+  flex: 1;
+  min-width: 0;
+  max-width: 20rem;
+}
+
+.switcherDesktop {
+  width: 22rem;
+  flex: none;
+}
+
+/* Sobre la barra de color: fondo translúcido, texto blanco y el activo en blanco con el color del modo. */
+.switcherRoot {
+  background: rgb(255 255 255 / 0.16);
 }
 
 .switcherControl {
   flex: 1 1 0;
 }
 
-/* El label es lo que se toca: 46px de alto como mínimo. */
+/* El label es lo que se toca: 44px de alto como mínimo. */
 .switcherTouch {
-  min-height: 2.875rem;
+  min-height: 2.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--mantine-color-white);
+
+  &[data-active] {
+    color: var(--switch-active);
+  }
 }
 
 .switcherLabel {
@@ -141,10 +156,6 @@
 }
 
 /* ——— Escritorio ——— */
-.switcherInline {
-  width: 22rem;
-  flex: none;
-}
 
 .sidebar {
   background: var(--mantine-color-white);

@@ -47,7 +47,7 @@ export function MisPedidosPage() {
   const stats: Stat[] = [
     { label: 'Publicados', value: active.filter((j) => j.status === 'publicado').length, icon: IconSpeakerphone, color: 'blue' },
     {
-      label: 'Postulaciones por revisar',
+      label: 'Por revisar',
       value: active.reduce((n, j) => n + (j.status === 'publicado' ? pendingCount(j) : 0), 0),
       icon: IconUsers,
       color: 'orange',
@@ -104,14 +104,14 @@ export function MisPedidosPage() {
 
 type Stat = { label: string; value: number; icon: Icon; color: string };
 
-/** Escritorio: resumen de los pedidos en una fila de números. */
+/** Resumen de los pedidos: 2×2 en el celular, una fila en escritorio. */
 function StatsRow({ stats }: { stats: Stat[] }) {
   return (
-    <SimpleGrid cols={4} spacing="md" visibleFrom="md">
+    <SimpleGrid cols={{ base: 2, md: 4 }} spacing={{ base: 'xs', md: 'md' }}>
       {stats.map(({ label, value, icon: StatIcon, color }) => (
-        <Paper key={label} withBorder radius="lg" p="md">
-          <Group gap="sm" wrap="nowrap">
-            <ThemeIcon size={44} radius="md" variant="light" color={color}>
+        <Paper key={label} withBorder radius="lg" p={{ base: 'sm', md: 'md' }}>
+          <Group gap="sm" wrap="nowrap" align="flex-start">
+            <ThemeIcon size={40} radius="md" variant="light" color={color}>
               <StatIcon size={24} aria-hidden />
             </ThemeIcon>
             <div style={{ minWidth: 0 }}>

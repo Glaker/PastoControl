@@ -802,6 +802,10 @@ TrabajoDetalle, Nuevo/Editar pedido, PersonaPage, describe y `send-push`.
   - Trabajos: origen y distancia lado a lado. Carteles de avisos e instalación como franja (texto y botones en fila).
   - En el celular no cambia nada. Revisado con sesión en el navegador (pedir, detalle, nuevo pedido, perfil,
     avisos, postulaciones; la lista de trabajos no, porque la cuenta de prueba no tiene casa cargada).
+- [x] Celular: el selector «Pedir corte / Cortar» pasa a la barra de arriba (una sola barra de 64 px en vez de
+  120; con selector se ve solo el logo). Selector en blanco sobre el color del modo (también en escritorio).
+  Carteles de avisos e instalación compactos (título y «Ahora no» en una fila, botón a todo el ancho). Resumen
+  de Mis pedidos en 2×2. Verificado a 375 px con sesión, sin scroll horizontal.
 - [x] Recordatorio «¿Ya cortaron?» (`0028`): pg_cron diario a las 10:00 (AR), `private.remind_unfinished_jobs`,
   aviso `recordatorio_realizado` a las dos partes desde el día siguiente al acordado y hasta 7 días después,
   uno por trabajo (dedupe_key). Texto en `describe.tsx` y `send-push` (deployado, v9).

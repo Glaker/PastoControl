@@ -144,6 +144,35 @@ function PromptCard({
     );
   }
 
+  // Celular con un botón: compacto (título y «Ahora no» en una fila, el texto y el botón a todo el ancho).
+  if (action) {
+    return (
+      <Card withBorder radius="lg" padding="md" mb="lg" style={{ borderColor: `var(--mantine-color-${color}-4)` }}>
+        <Stack gap="xs">
+          <Group justify="space-between" gap="xs" wrap="nowrap">
+            {/* Sin el ícono: el título y «Ahora no» entran en una fila a 360 px. */}
+            <Title order={2} size="h5" c={`${color}.8`} style={{ minWidth: 0 }}>
+              {title}
+            </Title>
+            <Button
+              variant="subtle"
+              color="gray"
+              size="compact-md"
+              mih={44}
+              style={{ flex: 'none' }}
+              leftSection={<IconX size={16} aria-hidden />}
+              onClick={onClose}
+            >
+              Ahora no
+            </Button>
+          </Group>
+          {children}
+          {action}
+        </Stack>
+      </Card>
+    );
+  }
+
   return (
     <Card withBorder radius="md" padding="lg" mb="lg" style={{ borderColor: `var(--mantine-color-${color}-4)` }}>
       <Stack gap="md">
@@ -156,7 +185,6 @@ function PromptCard({
           </Title>
         </Group>
         {children}
-        {action}
         {close}
         <Text size="xs" c="dimmed" ta="center" mt={-8}>
           Lo vas a encontrar en tu perfil cuando quieras.

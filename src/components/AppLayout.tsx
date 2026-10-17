@@ -13,7 +13,8 @@ import { startPushSync } from '../push/pushStore';
 import classes from './AppLayout.module.css';
 
 const BAR_HEIGHT = 56;
-const SWITCHER_HEIGHT = 64;
+// Con los dos roles, el selector va en la misma barra (en vez de una fila aparte): un poco más alta.
+const BAR_WITH_SWITCHER_HEIGHT = 64;
 const NAV_HEIGHT = 64;
 const DESKTOP_BAR_HEIGHT = 64;
 const SIDEBAR_WIDTH = 248;
@@ -46,10 +47,11 @@ export function AppLayout() {
   if (pathMode && !modes.includes(pathMode)) return <Navigate to={config.home} replace />;
 
   const modeLabel = !showSwitcher && <span className={classes.modeTag}>{config.headerLabel}</span>;
+  // En el celular con selector, solo el logo: el nombre no entra al lado del selector.
   const brand = (
     <Link to={config.home} className={classes.brand} aria-label="PastoControl, ir al inicio">
       <img src="/logo.svg" alt="" className={classes.brandLogo} />
-      <span className={classes.brandName}>PastoControl</span>
+      {(desktop || !showSwitcher) && <span className={classes.brandName}>PastoControl</span>}
     </Link>
   );
 
@@ -59,7 +61,7 @@ export function AppLayout() {
         <AppShell.Header withBorder={false}>
           <div className={classes.headerBar} style={{ height: DESKTOP_BAR_HEIGHT, background: `var(--mantine-color-${config.color}-8)` }}>
             {brand}
-            {showSwitcher ? <ModeSwitcher mode={mode} modes={modes} compact /> : modeLabel}
+            {showSwitcher ? <ModeSwitcher mode={mode} modes={modes} className={classes.switcherDesktop} /> : modeLabel}
           </div>
         </AppShell.Header>
 
@@ -81,17 +83,22 @@ export function AppLayout() {
 
   return (
     <AppShell
-      header={{ height: BAR_HEIGHT + (showSwitcher ? SWITCHER_HEIGHT : 0) }}
+      header={{ height: showSwitcher ? BAR_WITH_SWITCHER_HEIGHT : BAR_HEIGHT }}
       footer={{ height: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom))` }}
       padding="md"
     >
       <AppShell.Header withBorder={false}>
-        <div className={classes.headerBar} style={{ background: `var(--mantine-color-${config.color}-8)` }}>
+        <div
+          className={classes.headerBar}
+          style={{
+            height: showSwitcher ? BAR_WITH_SWITCHER_HEIGHT : BAR_HEIGHT,
+            background: `var(--mantine-color-${config.color}-8)`,
+          }}
+        >
           {brand}
           {/* Con un solo rol no hay selector: el encabezado igual dice en qué modo estás. */}
-          {modeLabel}
+          {showSwitcher ? <ModeSwitcher mode={mode} modes={modes} className={classes.switcherMobile} /> : modeLabel}
         </div>
-        {showSwitcher && <ModeSwitcher mode={mode} modes={modes} />}
       </AppShell.Header>
 
       <AppShell.Main className={classes.main}>
@@ -108,17 +115,18 @@ export function AppLayout() {
   );
 }
 
-function ModeSwitcher({ mode, modes, compact = false }: { mode: Mode; modes: Mode[]; compact?: boolean }) {
+/** Selector «Pedir corte / Cortar» sobre la barra de color: el modo activo en blanco. */
+function ModeSwitcher({ mode, modes, className }: { mode: Mode; modes: Mode[]; className?: string }) {
   const navigate = useNavigate();
 
   return (
-    <div className={compact ? classes.switcherInline : classes.switcherRow} style={compact ? undefined : { height: SWITCHER_HEIGHT }}>
+    <div className={className} style={{ ['--switch-active' as string]: `var(--mantine-color-${MODES[mode].color}-8)` }}>
       <SegmentedControl
         fullWidth
         aria-label="Elegí qué querés hacer"
         value={mode}
-        color={MODES[mode].color}
-        classNames={{ control: classes.switcherControl, label: classes.switcherTouch }}
+        color="white"
+        classNames={{ root: classes.switcherRoot, control: classes.switcherControl, label: classes.switcherTouch }}
         onChange={(value) => navigate(MODES[value as Mode].home)}
         data={modes.map((m) => {
           const Icon = MODE_ICONS[m];
